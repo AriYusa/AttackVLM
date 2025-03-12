@@ -54,6 +54,7 @@ def to_tensor(pic):
 
 transform = torchvision.transforms.Compose(
     [
+        torchvision.transforms.Resize((224, 224)),
         torchvision.transforms.Lambda(lambda img: img.convert("RGB")),
         torchvision.transforms.Lambda(lambda img: to_tensor(img)),
     ]
@@ -86,8 +87,10 @@ if __name__ == "__main__":
     parser.add_argument("--epsilon", default=8, type=int)
     parser.add_argument("--steps", default=8, type=int)
     parser.add_argument("--output", default="temp", type=str)
-    parser.add_argument("--data_path", default="temp", type=str)
-    parser.add_argument("--text_path", default="temp", type=str)
+    parser.add_argument("--adv_data_path", default="temp", type=str)
+    parser.add_argument("--clean_data_path", default="temp", type=str)
+    parser.add_argument("--adv_text_path", default="temp", type=str)
+    parser.add_argument("--tgt_text_path", default="temp", type=str)
     
     parser.add_argument("--delta", default="normal", type=str)
     parser.add_argument("--save_img", action='store_true')
@@ -169,10 +172,10 @@ if __name__ == "__main__":
     # use clip text encoder for attack
     clip_img_model_for_unidiff, clip_img_model_preprocess_for_unidiff = clip.load("ViT-B/32", device=device, jit=False)
     
-    clip_img_model_rn50,   _ = clip.load("RN50", device=device, jit=False)
-    clip_img_model_rn101,  _ = clip.load("RN101", device=device, jit=False)
-    clip_img_model_vitb16, _ = clip.load("ViT-B/16", device=device, jit=False)
-    clip_img_model_vitl14, _ = clip.load("ViT-L/14", device=device, jit=False)
+    # clip_img_model_rn50,   _ = clip.load("RN50", device=device, jit=False)
+    # clip_img_model_rn101,  _ = clip.load("RN101", device=device, jit=False)
+    # clip_img_model_vitb16, _ = clip.load("ViT-B/16", device=device, jit=False)
+    # clip_img_model_vitl14, _ = clip.load("ViT-L/14", device=device, jit=False)
     print("Done")
     # ---------------------- #
 
@@ -181,19 +184,19 @@ if __name__ == "__main__":
     batch_size    = config.batch_size
     alpha         = config.alpha
     epsilon       = config.epsilon
-    vit_adv_data  = ImageFolderWithPaths(config.data_path, transform=transform)
+    vit_adv_data  = ImageFolderWithPaths(config.adv_data_path, transform=transform)
     data_loader   = torch.utils.data.DataLoader(vit_adv_data, batch_size=batch_size, shuffle=False, num_workers=24)
 
     # clean img, same size as clip img encoder
-    clean_data    = ImageFolderWithPaths("../imagenet_resized_224", transform=transform)
+    clean_data    = ImageFolderWithPaths(config.clean_data_path, transform=transform)
     clean_data_loader = torch.utils.data.DataLoader(clean_data, batch_size=batch_size, shuffle=False, num_workers=24)
-    
+
     # org text/features
-    adv_vit_text_path = config.text_path
+    adv_vit_text_path = config.adv_text_path
     with open(os.path.join(adv_vit_text_path), 'r') as f:
-        unidiff_text_of_adv_vit  = f.readlines()[:config.num_samples] 
+        unidiff_text_of_adv_vit  = f.readlines()[:config.num_samples]
         f.close()
-    
+
     with torch.no_grad():
         adv_vit_text_token   = clip.tokenize(unidiff_text_of_adv_vit).to(device)
         adv_vit_text_features = clip_img_model_for_unidiff.encode_text(adv_vit_text_token)
@@ -201,7 +204,7 @@ if __name__ == "__main__":
         adv_vit_text_features = adv_vit_text_features.detach()
     
     # tgt text/features
-    tgt_text_path = './_coco_captions_10000.txt'
+    tgt_text_path = config.tgt_text_path
     with open(os.path.join(tgt_text_path), 'r') as f:
         tgt_text  = f.readlines()[:config.num_samples] 
         f.close()
@@ -219,68 +222,73 @@ if __name__ == "__main__":
     assert (vit_attack_results == query_attack_results).all()
     
     ## other arch
-    with torch.no_grad():
-        # rn50
-        adv_vit_text_features_rn50 = clip_img_model_rn50.encode_text(adv_vit_text_token)
-        adv_vit_text_features_rn50 = adv_vit_text_features_rn50 / adv_vit_text_features_rn50.norm(dim=1, keepdim=True)
-        adv_vit_text_features_rn50 = adv_vit_text_features_rn50.detach()
-        target_text_features_rn50  = clip_img_model_rn50.encode_text(target_text_token)
-        target_text_features_rn50  = target_text_features_rn50 / target_text_features_rn50.norm(dim=1, keepdim=True)
-        target_text_features_rn50  = target_text_features_rn50.detach()
-        vit_attack_results_rn50    = torch.sum(adv_vit_text_features_rn50 * target_text_features_rn50, dim=1).squeeze().detach().cpu().numpy()
-        query_attack_results_rn50  = torch.sum(adv_vit_text_features_rn50 * target_text_features_rn50, dim=1).squeeze().detach().cpu().numpy()
-        assert (vit_attack_results_rn50 == query_attack_results_rn50).all()
-
-        # rn101
-        adv_vit_text_features_rn101 = clip_img_model_rn101.encode_text(adv_vit_text_token)
-        adv_vit_text_features_rn101 = adv_vit_text_features_rn101 / adv_vit_text_features_rn101.norm(dim=1, keepdim=True)
-        adv_vit_text_features_rn101 = adv_vit_text_features_rn101.detach()
-        target_text_features_rn101  = clip_img_model_rn101.encode_text(target_text_token)
-        target_text_features_rn101  = target_text_features_rn101 / target_text_features_rn101.norm(dim=1, keepdim=True)
-        target_text_features_rn101  = target_text_features_rn101.detach()
-        vit_attack_results_rn101    = torch.sum(adv_vit_text_features_rn101 * target_text_features_rn101, dim=1).squeeze().detach().cpu().numpy()
-        query_attack_results_rn101  = torch.sum(adv_vit_text_features_rn101 * target_text_features_rn101, dim=1).squeeze().detach().cpu().numpy()
-        assert (vit_attack_results_rn101 == query_attack_results_rn101).all()
-
-        # vitb16
-        adv_vit_text_features_vitb16 = clip_img_model_vitb16.encode_text(adv_vit_text_token)
-        adv_vit_text_features_vitb16 = adv_vit_text_features_vitb16 / adv_vit_text_features_vitb16.norm(dim=1, keepdim=True)
-        adv_vit_text_features_vitb16 = adv_vit_text_features_vitb16.detach()
-        target_text_features_vitb16  = clip_img_model_vitb16.encode_text(target_text_token)
-        target_text_features_vitb16  = target_text_features_vitb16 / target_text_features_vitb16.norm(dim=1, keepdim=True)
-        target_text_features_vitb16  = target_text_features_vitb16.detach()
-        vit_attack_results_vitb16    = torch.sum(adv_vit_text_features_vitb16 * target_text_features_vitb16, dim=1).squeeze().detach().cpu().numpy()
-        query_attack_results_vitb16  = torch.sum(adv_vit_text_features_vitb16 * target_text_features_vitb16, dim=1).squeeze().detach().cpu().numpy()
-        assert (vit_attack_results_vitb16 == query_attack_results_vitb16).all()
-
-        # vitl14
-        adv_vit_text_features_vitl14 = clip_img_model_vitl14.encode_text(adv_vit_text_token)
-        adv_vit_text_features_vitl14 = adv_vit_text_features_vitl14 / adv_vit_text_features_vitl14.norm(dim=1, keepdim=True)
-        adv_vit_text_features_vitl14 = adv_vit_text_features_vitl14.detach()
-        target_text_features_vitl14  = clip_img_model_vitl14.encode_text(target_text_token)
-        target_text_features_vitl14  = target_text_features_vitl14 / target_text_features_vitl14.norm(dim=1, keepdim=True)
-        target_text_features_vitl14  = target_text_features_vitl14.detach()
-        vit_attack_results_vitl14    = torch.sum(adv_vit_text_features_vitl14 * target_text_features_vitl14, dim=1).squeeze().detach().cpu().numpy()
-        query_attack_results_vitl14  = torch.sum(adv_vit_text_features_vitl14 * target_text_features_vitl14, dim=1).squeeze().detach().cpu().numpy()
-        assert (vit_attack_results_vitl14 == query_attack_results_vitl14).all()
+    # with torch.no_grad():
+    #     # rn50
+    #     adv_vit_text_features_rn50 = clip_img_model_rn50.encode_text(adv_vit_text_token)
+    #     adv_vit_text_features_rn50 = adv_vit_text_features_rn50 / adv_vit_text_features_rn50.norm(dim=1, keepdim=True)
+    #     adv_vit_text_features_rn50 = adv_vit_text_features_rn50.detach()
+    #     target_text_features_rn50  = clip_img_model_rn50.encode_text(target_text_token)
+    #     target_text_features_rn50  = target_text_features_rn50 / target_text_features_rn50.norm(dim=1, keepdim=True)
+    #     target_text_features_rn50  = target_text_features_rn50.detach()
+    #     vit_attack_results_rn50    = torch.sum(adv_vit_text_features_rn50 * target_text_features_rn50, dim=1).squeeze().detach().cpu().numpy()
+    #     query_attack_results_rn50  = torch.sum(adv_vit_text_features_rn50 * target_text_features_rn50, dim=1).squeeze().detach().cpu().numpy()
+    #     assert (vit_attack_results_rn50 == query_attack_results_rn50).all()
+    #
+    #     # rn101
+    #     adv_vit_text_features_rn101 = clip_img_model_rn101.encode_text(adv_vit_text_token)
+    #     adv_vit_text_features_rn101 = adv_vit_text_features_rn101 / adv_vit_text_features_rn101.norm(dim=1, keepdim=True)
+    #     adv_vit_text_features_rn101 = adv_vit_text_features_rn101.detach()
+    #     target_text_features_rn101  = clip_img_model_rn101.encode_text(target_text_token)
+    #     target_text_features_rn101  = target_text_features_rn101 / target_text_features_rn101.norm(dim=1, keepdim=True)
+    #     target_text_features_rn101  = target_text_features_rn101.detach()
+    #     vit_attack_results_rn101    = torch.sum(adv_vit_text_features_rn101 * target_text_features_rn101, dim=1).squeeze().detach().cpu().numpy()
+    #     query_attack_results_rn101  = torch.sum(adv_vit_text_features_rn101 * target_text_features_rn101, dim=1).squeeze().detach().cpu().numpy()
+    #     assert (vit_attack_results_rn101 == query_attack_results_rn101).all()
+    #
+    #     # vitb16
+    #     adv_vit_text_features_vitb16 = clip_img_model_vitb16.encode_text(adv_vit_text_token)
+    #     adv_vit_text_features_vitb16 = adv_vit_text_features_vitb16 / adv_vit_text_features_vitb16.norm(dim=1, keepdim=True)
+    #     adv_vit_text_features_vitb16 = adv_vit_text_features_vitb16.detach()
+    #     target_text_features_vitb16  = clip_img_model_vitb16.encode_text(target_text_token)
+    #     target_text_features_vitb16  = target_text_features_vitb16 / target_text_features_vitb16.norm(dim=1, keepdim=True)
+    #     target_text_features_vitb16  = target_text_features_vitb16.detach()
+    #     vit_attack_results_vitb16    = torch.sum(adv_vit_text_features_vitb16 * target_text_features_vitb16, dim=1).squeeze().detach().cpu().numpy()
+    #     query_attack_results_vitb16  = torch.sum(adv_vit_text_features_vitb16 * target_text_features_vitb16, dim=1).squeeze().detach().cpu().numpy()
+    #     assert (vit_attack_results_vitb16 == query_attack_results_vitb16).all()
+    #
+    #     # vitl14
+    #     adv_vit_text_features_vitl14 = clip_img_model_vitl14.encode_text(adv_vit_text_token)
+    #     adv_vit_text_features_vitl14 = adv_vit_text_features_vitl14 / adv_vit_text_features_vitl14.norm(dim=1, keepdim=True)
+    #     adv_vit_text_features_vitl14 = adv_vit_text_features_vitl14.detach()
+    #     target_text_features_vitl14  = clip_img_model_vitl14.encode_text(target_text_token)
+    #     target_text_features_vitl14  = target_text_features_vitl14 / target_text_features_vitl14.norm(dim=1, keepdim=True)
+    #     target_text_features_vitl14  = target_text_features_vitl14.detach()
+    #     vit_attack_results_vitl14    = torch.sum(adv_vit_text_features_vitl14 * target_text_features_vitl14, dim=1).squeeze().detach().cpu().numpy()
+    #     query_attack_results_vitl14  = torch.sum(adv_vit_text_features_vitl14 * target_text_features_vitl14, dim=1).squeeze().detach().cpu().numpy()
+    #     assert (vit_attack_results_vitl14 == query_attack_results_vitl14).all()
     ## ----------
     
     if config.wandb:
-        run = wandb.init(project=config.wandb_project_name, name=config.wandb_run_name, reinit=True)
+        run = wandb.init(project=config.wandb_project_name, reinit=True)
     
     for i, ((image, _, path), (image_clean, _, _)) in enumerate(zip(data_loader, clean_data_loader)):
         if batch_size * (i+1) > config.num_samples:
             break
+
         image = image.to(device)  # size=(10, 3, 224, 224)
+        print(image.shape)
         image_clean = image_clean.to(device)  # size=(10, 3, 224, 224)
+        print("image", image.shape, image_clean.shape)
         # obtain all text features (via CLIP text encoder)
         adv_text_features = adv_vit_text_features[batch_size * (i): batch_size * (i+1)]        
         tgt_text_features = target_text_features[batch_size * (i): batch_size * (i+1)]
+        print("txt features shape", adv_text_features.shape, tgt_text_features.shape)
         
         # ------------------- random gradient-free method
         print("init delta with diff(adv-clean)")
         delta = torch.tensor((image - image_clean))
         torch.cuda.empty_cache()
+        print("delta.shape", delta.shape)
         
         best_caption = unidiff_text_of_adv_vit[i]
         better_flag = 0
@@ -306,6 +314,7 @@ if __name__ == "__main__":
                     torch.cuda.empty_cache()
             ###########
             ###########
+            print("image_repeat.shape", image_repeat.shape)
             
             query_noise            = torch.randn_like(image_repeat).sign() # Rademacher noise
             perturbed_image_repeat = torch.clamp(image_repeat + (sigma * query_noise), 0.0, 255.0)  # size = (num_query x batch_size, 3, 224, 224)
@@ -314,6 +323,7 @@ if __name__ == "__main__":
             text_of_perturbed_imgs = []
             for query_idx in range(num_query//num_sub_query):
                 sub_perturbed_image_repeat = perturbed_image_repeat[num_sub_query * (query_idx) : num_sub_query * (query_idx+1)]
+                print("sub_perturbed_image_repeat", sub_perturbed_image_repeat.shape)
                 with torch.no_grad():
                     text_of_sub_perturbed_imgs = i2t_image_batch(config, nnet, use_caption_decoder, caption_decoder, clip_text_model_for_unidiff, autoencoder,
                                                                  clip_img_model_for_unidiff, clip_img_model_preprocess_for_unidiff,
@@ -365,63 +375,63 @@ if __name__ == "__main__":
                     best_caption = unidiff_text_of_adv_image_in_current_step[0]
                     better_flag  = 1
             
-                # other clip archs
-                # rn50
-                tgt_text_features_rn50 = target_text_features_rn50[batch_size * (i): batch_size * (i+1)]
-                text_features_of_adv_image_in_current_step_rn50 = clip_img_model_rn50.encode_text(unidiff_text_token)
-                text_features_of_adv_image_in_current_step_rn50 = text_features_of_adv_image_in_current_step_rn50 / text_features_of_adv_image_in_current_step_rn50.norm(dim=1, keepdim=True)
-                text_features_of_adv_image_in_current_step_rn50 = text_features_of_adv_image_in_current_step_rn50.detach()
-                adv_txt_tgt_txt_score_in_current_step_rn50 = torch.mean(torch.sum(text_features_of_adv_image_in_current_step_rn50 * tgt_text_features_rn50, dim=1)).item()
-                if adv_txt_tgt_txt_score_in_current_step_rn50 > query_attack_results_rn50[i]:
-                    query_attack_results_rn50[i] = adv_txt_tgt_txt_score_in_current_step_rn50
-                
-                # rn101
-                tgt_text_features_rn101 = target_text_features_rn101[batch_size * (i): batch_size * (i+1)]
-                text_features_of_adv_image_in_current_step_rn101 = clip_img_model_rn101.encode_text(unidiff_text_token)
-                text_features_of_adv_image_in_current_step_rn101 = text_features_of_adv_image_in_current_step_rn101 / text_features_of_adv_image_in_current_step_rn101.norm(dim=1, keepdim=True)
-                text_features_of_adv_image_in_current_step_rn101 = text_features_of_adv_image_in_current_step_rn101.detach()
-                adv_txt_tgt_txt_score_in_current_step_rn101 = torch.mean(torch.sum(text_features_of_adv_image_in_current_step_rn101 * tgt_text_features_rn101, dim=1)).item()
-                if adv_txt_tgt_txt_score_in_current_step_rn101 > query_attack_results_rn101[i]:
-                    query_attack_results_rn101[i] = adv_txt_tgt_txt_score_in_current_step_rn101
-                
-                # vitb16
-                tgt_text_features_vitb16 = target_text_features_vitb16[batch_size * (i): batch_size * (i+1)]
-                text_features_of_adv_image_in_current_step_vitb16 = clip_img_model_vitb16.encode_text(unidiff_text_token)
-                text_features_of_adv_image_in_current_step_vitb16 = text_features_of_adv_image_in_current_step_vitb16 / text_features_of_adv_image_in_current_step_vitb16.norm(dim=1, keepdim=True)
-                text_features_of_adv_image_in_current_step_vitb16 = text_features_of_adv_image_in_current_step_vitb16.detach()
-                adv_txt_tgt_txt_score_in_current_step_vitb16 = torch.mean(torch.sum(text_features_of_adv_image_in_current_step_vitb16 * tgt_text_features_vitb16, dim=1)).item()
-                if adv_txt_tgt_txt_score_in_current_step_vitb16 > query_attack_results_vitb16[i]:
-                    query_attack_results_vitb16[i] = adv_txt_tgt_txt_score_in_current_step_vitb16
-                
-                # vitl14
-                tgt_text_features_vitl14 = target_text_features_vitl14[batch_size * (i): batch_size * (i+1)]
-                text_features_of_adv_image_in_current_step_vitl14 = clip_img_model_vitl14.encode_text(unidiff_text_token)
-                text_features_of_adv_image_in_current_step_vitl14 = text_features_of_adv_image_in_current_step_vitl14 / text_features_of_adv_image_in_current_step_vitl14.norm(dim=1, keepdim=True)
-                text_features_of_adv_image_in_current_step_vitl14 = text_features_of_adv_image_in_current_step_vitl14.detach()
-                adv_txt_tgt_txt_score_in_current_step_vitl14 = torch.mean(torch.sum(text_features_of_adv_image_in_current_step_vitl14 * tgt_text_features_vitl14, dim=1)).item()
-                if adv_txt_tgt_txt_score_in_current_step_vitl14 > query_attack_results_vitl14[i]:
-                    query_attack_results_vitl14[i] = adv_txt_tgt_txt_score_in_current_step_vitl14
-                    # ----------------
-                torch.cuda.empty_cache()
-                
+                # # other clip archs
+                # # rn50
+                # tgt_text_features_rn50 = target_text_features_rn50[batch_size * (i): batch_size * (i+1)]
+                # text_features_of_adv_image_in_current_step_rn50 = clip_img_model_rn50.encode_text(unidiff_text_token)
+                # text_features_of_adv_image_in_current_step_rn50 = text_features_of_adv_image_in_current_step_rn50 / text_features_of_adv_image_in_current_step_rn50.norm(dim=1, keepdim=True)
+                # text_features_of_adv_image_in_current_step_rn50 = text_features_of_adv_image_in_current_step_rn50.detach()
+                # adv_txt_tgt_txt_score_in_current_step_rn50 = torch.mean(torch.sum(text_features_of_adv_image_in_current_step_rn50 * tgt_text_features_rn50, dim=1)).item()
+                # if adv_txt_tgt_txt_score_in_current_step_rn50 > query_attack_results_rn50[i]:
+                #     query_attack_results_rn50[i] = adv_txt_tgt_txt_score_in_current_step_rn50
+                #
+                # # rn101
+                # tgt_text_features_rn101 = target_text_features_rn101[batch_size * (i): batch_size * (i+1)]
+                # text_features_of_adv_image_in_current_step_rn101 = clip_img_model_rn101.encode_text(unidiff_text_token)
+                # text_features_of_adv_image_in_current_step_rn101 = text_features_of_adv_image_in_current_step_rn101 / text_features_of_adv_image_in_current_step_rn101.norm(dim=1, keepdim=True)
+                # text_features_of_adv_image_in_current_step_rn101 = text_features_of_adv_image_in_current_step_rn101.detach()
+                # adv_txt_tgt_txt_score_in_current_step_rn101 = torch.mean(torch.sum(text_features_of_adv_image_in_current_step_rn101 * tgt_text_features_rn101, dim=1)).item()
+                # if adv_txt_tgt_txt_score_in_current_step_rn101 > query_attack_results_rn101[i]:
+                #     query_attack_results_rn101[i] = adv_txt_tgt_txt_score_in_current_step_rn101
+                #
+                # # vitb16
+                # tgt_text_features_vitb16 = target_text_features_vitb16[batch_size * (i): batch_size * (i+1)]
+                # text_features_of_adv_image_in_current_step_vitb16 = clip_img_model_vitb16.encode_text(unidiff_text_token)
+                # text_features_of_adv_image_in_current_step_vitb16 = text_features_of_adv_image_in_current_step_vitb16 / text_features_of_adv_image_in_current_step_vitb16.norm(dim=1, keepdim=True)
+                # text_features_of_adv_image_in_current_step_vitb16 = text_features_of_adv_image_in_current_step_vitb16.detach()
+                # adv_txt_tgt_txt_score_in_current_step_vitb16 = torch.mean(torch.sum(text_features_of_adv_image_in_current_step_vitb16 * tgt_text_features_vitb16, dim=1)).item()
+                # if adv_txt_tgt_txt_score_in_current_step_vitb16 > query_attack_results_vitb16[i]:
+                #     query_attack_results_vitb16[i] = adv_txt_tgt_txt_score_in_current_step_vitb16
+                #
+                # # vitl14
+                # tgt_text_features_vitl14 = target_text_features_vitl14[batch_size * (i): batch_size * (i+1)]
+                # text_features_of_adv_image_in_current_step_vitl14 = clip_img_model_vitl14.encode_text(unidiff_text_token)
+                # text_features_of_adv_image_in_current_step_vitl14 = text_features_of_adv_image_in_current_step_vitl14 / text_features_of_adv_image_in_current_step_vitl14.norm(dim=1, keepdim=True)
+                # text_features_of_adv_image_in_current_step_vitl14 = text_features_of_adv_image_in_current_step_vitl14.detach()
+                # adv_txt_tgt_txt_score_in_current_step_vitl14 = torch.mean(torch.sum(text_features_of_adv_image_in_current_step_vitl14 * tgt_text_features_vitl14, dim=1)).item()
+                # if adv_txt_tgt_txt_score_in_current_step_vitl14 > query_attack_results_vitl14[i]:
+                #     query_attack_results_vitl14[i] = adv_txt_tgt_txt_score_in_current_step_vitl14
+                #     # ----------------
+                # torch.cuda.empty_cache()
+                #
         # log clip score after query
         if config.wandb:
             wandb.log(
                 {   
-                    "moving-avg-adv-rn50"    : np.mean(vit_attack_results_rn50[:(i+1)]),
-                    "moving-avg-query-rn50"  : np.mean(query_attack_results_rn50[:(i+1)]),
-                    
-                    "moving-avg-adv-rn101"   : np.mean(vit_attack_results_rn101[:(i+1)]),
-                    "moving-avg-query-rn101" : np.mean(query_attack_results_rn101[:(i+1)]),
-                    
-                    "moving-avg-adv-vitb16"  : np.mean(vit_attack_results_vitb16[:(i+1)]),
-                    "moving-avg-query-vitb16": np.mean(query_attack_results_vitb16[:(i+1)]),
+                    # "moving-avg-adv-rn50"    : np.mean(vit_attack_results_rn50[:(i+1)]),
+                    # "moving-avg-query-rn50"  : np.mean(query_attack_results_rn50[:(i+1)]),
+                    #
+                    # "moving-avg-adv-rn101"   : np.mean(vit_attack_results_rn101[:(i+1)]),
+                    # "moving-avg-query-rn101" : np.mean(query_attack_results_rn101[:(i+1)]),
+                    #
+                    # "moving-avg-adv-vitb16"  : np.mean(vit_attack_results_vitb16[:(i+1)]),
+                    # "moving-avg-query-vitb16": np.mean(query_attack_results_vitb16[:(i+1)]),
                     
                     "moving-avg-adv-vitb32"  : np.mean(vit_attack_results[:(i+1)]),
                     "moving-avg-query-vitb32": np.mean(query_attack_results[:(i+1)]),
                     
-                    "moving-avg-adv-vitl14"  : np.mean(vit_attack_results_vitl14[:(i+1)]),
-                    "moving-avg-query-vitl14": np.mean(query_attack_results_vitl14[:(i+1)]),
+                    # "moving-avg-adv-vitl14"  : np.mean(vit_attack_results_vitl14[:(i+1)]),
+                    # "moving-avg-query-vitl14": np.mean(query_attack_results_vitl14[:(i+1)]),
                 }
             )
 

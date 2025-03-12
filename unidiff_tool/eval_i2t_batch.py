@@ -211,12 +211,16 @@ def i2t_image_batch(config, nnet, use_caption_decoder, caption_decoder, clip_tex
             clip_processed_img.append(clip_img_model_preprocess(Image.fromarray(image[idx])).to(device))
         
         clip_processed_img = torch.stack(clip_processed_img, dim=0)
+        print("clip_processed_img", clip_processed_img.shape)
         clip_img_feature = clip_img_model.encode_image(clip_processed_img).unsqueeze(1)  # size = (num_query*batch_size, 512)
         image = np.stack(center_cropped_img, axis=0)
         image = (image / 127.5 - 1.0).astype(np.float32)
         image = einops.rearrange(image, 'n h w c -> n c h w')
         image = torch.tensor(image, device=device)
         moments = autoencoder.encode_moments(image)
+
+        del center_cropped_img, clip_processed_img
+        torch.cuda.empty_cache()
 
     clip_img, img_context = clip_img_feature, moments
     contexts = torch.randn(image.shape[0], 77, config.clip_text_dim).to(device)
@@ -293,5 +297,9 @@ def i2t_image_batch(config, nnet, use_caption_decoder, caption_decoder, clip_tex
             _z, _clip_img = sample_fn('t2i', text=contexts_low_dim)
             _text = sample_fn('i2t', z=_z, clip_img=_clip_img)
         samples = caption_decoder.generate_captions(_text)
+
+    with torch.no_grad():
+        # Rest of your operations that might need clearing
+        torch.cuda.empty_cache()
 
     return samples

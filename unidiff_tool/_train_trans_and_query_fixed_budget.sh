@@ -1,19 +1,17 @@
-# #!/bin/bash
-
-
-# certain hyper-parameters can be modified based on user's preference
-python _train_adv_img_query_fixed_budget.py \
-    --output 'dir/name of queried captions' \
-    --data_path 'dir of white-box transfer images' \
-    --text_path 'name (.txt) of white-box transfer captions' \
+python _train_trans_and_query_fixed_budget.py \
+    --output 'captions' \
+    --adv_data_path 'images_adv_ii' \
+    --clean_data_path 'clean_images' \
+    --adv_text_path 'adv_coco_captions_10000.txt' \
+    --tgt_text_path 'coco_captions_10000.txt' \
     --batch_size 1 \
-    --num_samples 1000 \
+    --num_samples 6 \
     --steps 8 \
     --epsilon 8 \
     --sigma 8 \
     --delta 'zero' \
-    --num_query 100 \
-    --num_sub_query 25 \
+    --num_query 10 \
+    --num_sub_query 2 \
     --wandb \
     --wandb_project_name unidiff-attack \
     --wandb_run_name fixed-perturb-budget-for-query \
