@@ -5,8 +5,7 @@ import clip
 import numpy as np
 import torch
 import torchvision
-from PIL import Image
-from eval_i2t_batch import i2t_image_batch
+from unet_gen_captions import generate_captions
 import wandb
 
 ### unidiff lib
@@ -15,6 +14,8 @@ import utils
 from absl import logging
 import libs.autoencoder
 import libs.clip
+from libs.caption_decoder import CaptionDecoder
+from torchvision.transforms import InterpolationMode
 ### ###########
 
 # seed for everything
@@ -59,6 +60,7 @@ transform = torchvision.transforms.Compose(
         torchvision.transforms.Lambda(lambda img: to_tensor(img)),
     ]
 )
+BICUBIC = InterpolationMode.BICUBIC
 
 class ImageFolderWithPaths(torchvision.datasets.ImageFolder):
     def __getitem__(self, index: int):
@@ -73,8 +75,44 @@ def find_max(arr):
             max_value = num
     return max_value
 
+def load_models(config):
+    nnet = utils.get_nnet(**config.nnet)
+    logging.info(f'load nnet from {config.nnet_path}')
+    nnet.load_state_dict(torch.load(config.nnet_path, map_location='cpu'))
+    nnet.to(device)
+    nnet.eval()
 
-if __name__ == "__main__":
+    caption_decoder = CaptionDecoder(device=device, **config.caption_decoder)
+
+    autoencoder = libs.autoencoder.get_model(**config.autoencoder)
+    autoencoder.to(device)
+
+    clip_model, orig_preprocess = clip.load("ViT-B/32", device=device, jit=False)
+    clip_img_size = orig_preprocess.transforms[0].size
+
+    # https://github.com/openai/CLIP/blob/dcba3cb2e2827b402d2701e7e1c7d9fed8a20ef1/clip/clip.py#L79
+    # orig_preprocess expects PIL or np.array, clip_model_img_preprocess works with input torch.Tensor in range [0, 255]
+    clip_model_img_preprocess = torchvision.transforms.Compose([
+        torchvision.transforms.Resize(size=clip_img_size, interpolation=torchvision.transforms.BICUBIC),
+        torchvision.transforms.CenterCrop(size=clip_img_size),
+        torchvision.transforms.Lambda(lambda img: img / 255),
+        torchvision.transforms.Normalize(
+            mean=(0.48145466, 0.4578275, 0.40821073),
+            std=(0.26862954, 0.26130258, 0.27577711)
+        ),
+    ])
+
+    return nnet, caption_decoder, autoencoder, clip_model, clip_model_img_preprocess
+
+def compute_clip_features(texts, clip_model):
+    with torch.no_grad():
+        text_token = clip.tokenize(texts).to(device)
+        text_features = clip_model.encode_text(text_token)
+        text_features = text_features / text_features.norm(dim=1, keepdim=True)
+        return text_features.detach()
+
+
+def main():
     seedEverything()
     parser = argparse.ArgumentParser()
     parser.add_argument("--nnet_path", default="models/uvit_v1.pth", type=str)
@@ -146,35 +184,8 @@ if __name__ == "__main__":
         t2i_cfg_mode='true_uncond'
     )
     
-    # ---------------------- #
-    print("Loading unidiffuser models..")
-    nnet = utils.get_nnet(**config.nnet)
-    logging.info(f'load nnet from {config.nnet_path}')
-    nnet.load_state_dict(torch.load(config.nnet_path, map_location='cpu'))
-    nnet.to(device)
-    nnet.eval()
+    nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess = load_models(config)
 
-    use_caption_decoder = config.text_dim < config.clip_text_dim or config.mode != 't2i'
-    if use_caption_decoder:
-        from libs.caption_decoder import CaptionDecoder
-        caption_decoder = CaptionDecoder(device=device, **config.caption_decoder)
-    else:
-        caption_decoder = None
-
-    # text model for unidiffuser
-    clip_text_model_for_unidiff = libs.clip.FrozenCLIPEmbedder(device=device)
-    clip_text_model_for_unidiff = clip_text_model_for_unidiff.to(device)
-    clip_text_model_for_unidiff.eval()
-    
-    autoencoder = libs.autoencoder.get_model(**config.autoencoder)
-    autoencoder.to(device)
-
-    # use clip text encoder for attack
-    clip_img_model_for_unidiff, clip_img_model_preprocess_for_unidiff = clip.load("ViT-B/32", device=device, jit=False)
-    print("Done")
-    # ---------------------- #
-
-    # load clip_model params
     num_sub_query, num_query, sigma = config.num_sub_query, config.num_query, config.sigma
     batch_size    = config.batch_size
     alpha         = config.alpha
@@ -192,11 +203,7 @@ if __name__ == "__main__":
         unidiff_text_of_adv_vit  = f.readlines()[:config.num_samples]
         f.close()
 
-    with torch.no_grad():
-        adv_vit_text_token   = clip.tokenize(unidiff_text_of_adv_vit).to(device)
-        adv_vit_text_features = clip_img_model_for_unidiff.encode_text(adv_vit_text_token)
-        adv_vit_text_features = adv_vit_text_features / adv_vit_text_features.norm(dim=1, keepdim=True)
-        adv_vit_text_features = adv_vit_text_features.detach()
+    adv_vit_text_features = compute_clip_features(unidiff_text_of_adv_vit, clip_model)
     
     # tgt text/features
     tgt_text_path = config.tgt_text_path
@@ -205,11 +212,7 @@ if __name__ == "__main__":
         f.close()
     
     # clip text features of the target
-    with torch.no_grad():
-        target_text_token    = clip.tokenize(tgt_text).to(device)
-        target_text_features = clip_img_model_for_unidiff.encode_text(target_text_token)
-        target_text_features = target_text_features / target_text_features.norm(dim=1, keepdim=True)
-        target_text_features = target_text_features.detach()
+    target_text_features = compute_clip_features(tgt_text, clip_model)
 
     # baseline results
     vit_attack_results   = torch.sum(adv_vit_text_features * target_text_features, dim=1).squeeze().detach().cpu().numpy()
@@ -252,12 +255,8 @@ if __name__ == "__main__":
                 else:
                     image_repeat      = adv_image_in_current_step.repeat(num_query, 1, 1, 1)             
 
-                    unidiff_text_of_adv_vit_in_current_step = i2t_image_batch(config, nnet, use_caption_decoder, caption_decoder, clip_text_model_for_unidiff, autoencoder,
-                                                                    clip_img_model_for_unidiff, clip_img_model_preprocess_for_unidiff, adv_image_in_current_step)
-                    adv_vit_text_token_in_current_step      = clip.tokenize(unidiff_text_of_adv_vit_in_current_step).to(device)
-                    adv_vit_text_features_in_current_step   = clip_img_model_for_unidiff.encode_text(adv_vit_text_token_in_current_step)
-                    adv_vit_text_features_in_current_step   = adv_vit_text_features_in_current_step / adv_vit_text_features_in_current_step.norm(dim=1, keepdim=True)
-                    adv_vit_text_features_in_current_step   = adv_vit_text_features_in_current_step.detach()                
+                    unidiff_text_of_adv_vit_in_current_step = generate_captions(config, image_repeat, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
+                    adv_vit_text_features_in_current_step = compute_clip_features(unidiff_text_of_adv_vit_in_current_step, clip_model)
                     adv_text_features     = adv_vit_text_features_in_current_step
                     torch.cuda.empty_cache()
             ###########
@@ -273,18 +272,11 @@ if __name__ == "__main__":
                 sub_perturbed_image_repeat = perturbed_image_repeat[num_sub_query * (query_idx) : num_sub_query * (query_idx+1)]
                 print("sub_perturbed_image_repeat", sub_perturbed_image_repeat.shape)
                 with torch.no_grad():
-                    text_of_sub_perturbed_imgs = i2t_image_batch(config, nnet, use_caption_decoder, caption_decoder, clip_text_model_for_unidiff, autoencoder,
-                                                                 clip_img_model_for_unidiff, clip_img_model_preprocess_for_unidiff,
-                                                                 sub_perturbed_image_repeat)
+                    text_of_sub_perturbed_imgs = generate_captions(config, sub_perturbed_image_repeat, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
                 text_of_perturbed_imgs.extend(text_of_sub_perturbed_imgs)
             
             # step 2. estimate grad
-            with torch.no_grad():
-                perturb_text_token    = clip.tokenize(text_of_perturbed_imgs).to(device)
-                perturb_text_features = clip_img_model_for_unidiff.encode_text(perturb_text_token)
-                perturb_text_features = perturb_text_features / perturb_text_features.norm(dim=1, keepdim=True)
-                perturb_text_features = perturb_text_features.detach()
-            
+            perturb_text_features = compute_clip_features(text_of_perturbed_imgs, clip_model)
             coefficient     = torch.sum((perturb_text_features - adv_text_features) * tgt_text_features, dim=-1)
             coefficient     = coefficient.reshape(num_query, batch_size, 1, 1, 1)
             query_noise     = query_noise.reshape(num_query, batch_size, 3, 224, 224)
@@ -307,13 +299,8 @@ if __name__ == "__main__":
                         "mean delta:": torch.mean(torch.abs(delta)).item()
                     }
                 )
-                unidiff_text_of_adv_image_in_current_step = i2t_image_batch(config, nnet, use_caption_decoder, caption_decoder, clip_text_model_for_unidiff, autoencoder,
-                                                                            clip_img_model_for_unidiff, clip_img_model_preprocess_for_unidiff, adv_image_in_current_step)
-
-                unidiff_text_token = clip.tokenize(unidiff_text_of_adv_image_in_current_step).to(device)
-                unidiff_text_features_of_adv_image_in_current_step = clip_img_model_for_unidiff.encode_text(unidiff_text_token)
-                unidiff_text_features_of_adv_image_in_current_step = unidiff_text_features_of_adv_image_in_current_step / unidiff_text_features_of_adv_image_in_current_step.norm(dim=1, keepdim=True)
-                unidiff_text_features_of_adv_image_in_current_step = unidiff_text_features_of_adv_image_in_current_step.detach()
+                unidiff_text_of_adv_image_in_current_step = generate_captions(config, adv_image_in_current_step, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
+                unidiff_text_features_of_adv_image_in_current_step = compute_clip_features(unidiff_text_of_adv_image_in_current_step, clip_model)
 
                 adv_txt_tgt_txt_score_in_current_step = torch.mean(torch.sum(unidiff_text_features_of_adv_image_in_current_step * tgt_text_features, dim=1)).item()
                 
@@ -342,3 +329,6 @@ if __name__ == "__main__":
             else:
                 f.write(best_caption)
         f.close()
+
+if __name__ == "__main__":
+    main()
