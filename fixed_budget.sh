@@ -1,6 +1,12 @@
+cd ~
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -b
+export PATH="/root/miniconda3/bin:$PATH"
+source ~/.bashrc
+
 cd AttackVLM/
 git clone https://github.com/thu-ml/unidiffuser.git
-cp ./unidiff_tool/* ./unidiffuser
+cp -r ./unidiff_tool/* ./unidiffuser
 cd unidiffuser
 
 conda create -n unidiffuser python=3.9

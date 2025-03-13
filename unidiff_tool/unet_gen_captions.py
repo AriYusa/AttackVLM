@@ -23,10 +23,10 @@ def prepare_contexts(config, images_batch, clip_img_model, clip_img_model_prepro
 
     def get_img_feature(images_batch):
         images_batch = center_crop(images_batch, resolution)
-        clip_img_feature = clip_img_model.encode_image(clip_img_model_preprocess(images_batch).to(device))  # [batch_size, 512]
+        clip_img_feature = clip_img_model.encode_image(clip_img_model_preprocess(images_batch).to(device)).unsqueeze(1)   # [batch_size, 1, 512]
 
-        image = (image / 127.5 - 1.0)  # [0, 255] to [-1, 1]
-        moments = autoencoder.encode_moments(image)  # [batch_size, 2*4, 64, 64]
+        images_batch = (images_batch / 127.5 - 1.0)  # [0, 255] to [-1, 1]
+        moments = autoencoder.encode_moments(images_batch)  # [batch_size, 2*4, 64, 64]
 
         return clip_img_feature, moments
 
@@ -51,7 +51,6 @@ def generate_captions(config, images_batch, nnet, caption_decoder,autoencoder, c
 
         _, _, text_out = nnet(z, clip_img, text=x, t_img=t_img, t_text=timesteps,
                                              data_type=torch.zeros_like(t_img, device=device, dtype=torch.int) + config.data_type)
-        logging.info(f'text_out: {text_out.shape}')
         if config.sample.scale == 0.:
             return text_out
 
@@ -59,7 +58,6 @@ def generate_captions(config, images_batch, nnet, caption_decoder,autoencoder, c
         clip_img_N = torch.randn_like(clip_img)
         _, _, text_out_uncond = nnet(z_N, clip_img_N, text=x, t_img=torch.ones_like(timesteps) * N, t_text=timesteps,
                                                                   data_type=torch.zeros_like(timesteps, device=device, dtype=torch.int) + config.data_type)
-        logging.info(f'text_out_uncond: {text_out_uncond.shape}')
         return text_out + config.sample.scale * (text_out - text_out_uncond)
 
     logging.info(config.sample)
@@ -96,12 +94,12 @@ def generate_captions(config, images_batch, nnet, caption_decoder,autoencoder, c
     _text = sample_fn(z=z_img, clip_img=clip_imgs)  # conditioned on the image embedding
     samples = caption_decoder.generate_captions(_text)
     logging.info(samples)
-    os.makedirs(os.path.join(config.output_path, config.mode), exist_ok=True)
-    with open(os.path.join(config.output_path, config.mode, f'{config.mode}.txt'), 'w') as f:
+    os.makedirs(config.output_path, exist_ok=True)
+    with open(os.path.join(config.output_path, f'{config.mode}.txt'), 'w') as f:
         print('\n'.join(samples), file=f)
 
     print(f'\nGPU memory usage: {torch.cuda.max_memory_reserved() / 1024 ** 3:.2f} GB')
-    print(f'\nresults are saved in {os.path.join(config.output_path, config.mode)} :)')
+    print(f'\nresults are saved in {os.path.join(config.output_path)} :)')
 
     with torch.no_grad():
         # Rest of your operations that might need clearing

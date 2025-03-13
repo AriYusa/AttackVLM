@@ -4,13 +4,13 @@ python _train_trans_and_query_fixed_budget.py \
     --clean_data_path 'clean_images' \
     --adv_text_path 'adv_coco_captions_10000.txt' \
     --tgt_text_path 'coco_captions_10000.txt' \
-    --batch_size 1 \
+    --batch_size 2 \
     --num_samples 6 \
-    --steps 8 \
+    --steps 3 \
     --epsilon 8 \
     --sigma 8 \
     --delta 'zero' \
-    --num_query 10 \
+    --num_query 4 \
     --num_sub_query 2 \
     --wandb \
     --wandb_project_name unidiff-attack \
