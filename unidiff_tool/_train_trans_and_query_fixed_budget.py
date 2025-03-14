@@ -220,6 +220,7 @@ def main():
 
     if config.wandb:
         run = wandb.init(project=config.wandb_project_name, reinit=True)
+        table = wandb.Table(columns=[ "obj_idx", "transfer_caption", "transfer_score", "best_query_caption", "best_query_score", "best_step_idx"])
 
     def get_victim_captions_for_preturbed(perturbed_images):
         texts = []
@@ -247,7 +248,6 @@ def main():
         torch.cuda.empty_cache()
 
         best_captions = [""]*batch_size
-        better_flags = np.zeros(batch_size)
         best_step_info = np.zeros(batch_size)
 
         with torch.no_grad():
@@ -309,7 +309,6 @@ def main():
                     if score > query_attack_results[batch_i*batch_size+j]:
                         query_attack_results[batch_i * batch_size + j] = score.item()
                         best_captions[j] = unidiff_captions[j]
-                        better_flags[j] = 1
                         best_step_info[j] = step_idx
 
                 torch.cuda.empty_cache()
@@ -323,11 +322,24 @@ def main():
                 }
             )
 
+            # log information to wandb table
+            for j in range(batch_size):
+                obj_idx = batch_i * batch_size + j
+                table.add_data(
+                    obj_idx,
+                    unidiff_text_of_adv_vit[obj_idx],
+                    transfer_attack_results[obj_idx],
+                    best_captions[j],
+                    query_attack_results[obj_idx],
+                    best_step_info[j]
+                )
+            wandb.log({"results_table": table})
+
         # log text after query
         print("best captions after:", best_captions)
         with open(f"{config.output_path}.txt", 'a') as f:
-            for best_caption, better_flag in zip(best_captions, better_flags):
-                f.write(f"{better_flag}; {best_caption}\n")
+            for best_caption in best_captions:
+                f.write(f"{best_caption}\n")
 
 if __name__ == "__main__":
     main()
