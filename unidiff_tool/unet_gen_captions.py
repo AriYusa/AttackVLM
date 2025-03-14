@@ -60,15 +60,9 @@ def generate_captions(config, images_batch, nnet, caption_decoder,autoencoder, c
                                                                   data_type=torch.zeros_like(timesteps, device=device, dtype=torch.int) + config.data_type)
         return text_out + config.sample.scale * (text_out - text_out_uncond)
 
-    logging.info(config.sample)
-    logging.info(f'N={N}')
-
     clip_imgs, img_contexts = prepare_contexts(config, images_batch, clip_model, clip_model_img_preprocess, autoencoder)
-    logging.info(f'img_contexts: {img_contexts.shape}')
-    logging.info(f'clip_imgs: {clip_imgs.shape}')
 
     z_img = autoencoder.sample(img_contexts)
-    logging.info(f'z_img: {z_img.shape}')
 
     def sample_fn(z, clip_img):
         batch_size = clip_img.shape[0]
@@ -84,7 +78,6 @@ def generate_captions(config, images_batch, nnet, caption_decoder,autoencoder, c
             with torch.autocast(device_type=device):
                 start_time = time.time()
                 x = dpm_solver.sample(_text_init, steps=config.sample.sample_steps, eps=1. / N, T=1.)
-                logging.info(f' sample_fn x: {x.shape}')
                 end_time = time.time()
                 print(f'\ngenerate {batch_size} samples with {config.sample.sample_steps} steps takes {end_time - start_time:.2f}s')
 

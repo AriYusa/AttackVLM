@@ -6,7 +6,7 @@ import torchvision
 from torch.utils.data import DataLoader
 import time
 
-from unidiff_tool.images_adv_ii.utils import seedEverything, ImageFolderWithPaths, get_main_preprocess, \
+from common_utils import seedEverything, ImageFolderWithPaths, get_main_preprocess, \
     get_clip_model_img_preprocess
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -58,11 +58,10 @@ def main(args):
             embedding_sim = torch.mean(torch.sum(adv_image_features * tgt_image_features, dim=1))
             embedding_sim.backward()
 
-            with torch.no_grad():
-                grad = delta.grad
-                delta += args.alpha * torch.sign(grad)
-                delta = torch.clamp(delta, min=-args.epsilon, max=args.epsilon)
-                delta.grad.zero_()
+            grad = delta.grad.detach()
+            d = torch.clamp(delta + args.alpha * torch.sign(grad), min=-args.epsilon, max=args.epsilon)
+            delta.data = d
+            delta.grad.zero_()
 
             # Log progress
             print(f"iter {i}/{args.num_samples // args.batch_size} step:{step_idx:3d}, "
@@ -107,7 +106,7 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="temp", type=str, help='the folder name of output')
     parser.add_argument("--cle_data_path", default=None, type=str, help='path of the clean images')
     parser.add_argument("--tgt_data_path", default=None, type=str, help='path of the target images')
-    parser.add_argument("--wanb_project_name", default=None, type=str)
+    parser.add_argument("--wandb_project_name", default=None, type=str)
     args = parser.parse_args()
 
     main(args)

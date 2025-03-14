@@ -14,7 +14,7 @@ import libs.autoencoder
 import libs.clip
 from libs.caption_decoder import CaptionDecoder
 
-from unidiff_tool.images_adv_ii.utils import get_clip_model_img_preprocess, seedEverything, ImageFolderWithPaths, \
+from common_utils import get_clip_model_img_preprocess, seedEverything, ImageFolderWithPaths, \
     get_main_preprocess
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -157,14 +157,13 @@ def main():
     query_attack_results = np.zeros_like(transfer_attack_results)
 
     if config.wandb:
-        run = wandb.init(project=config.wandb_project_name, reinit=True)
+        run = wandb.init(project=config.wandb_project_name, reinit=True, config=config)
         table = wandb.Table(columns=[ "obj_idx", "transfer_caption", "transfer_score", "best_query_caption", "best_query_score", "best_step_idx"])
 
     def get_victim_captions_for_preturbed(perturbed_images):
         texts = []
         for query_idx in range(num_query*batch_size//num_sub_query):
             batch_preturbed_images = perturbed_images[num_sub_query * (query_idx) : num_sub_query * (query_idx+1)]
-            print("batch_preturbed_images", batch_preturbed_images.shape)
             with torch.no_grad():
                 batch_captions = generate_captions(config, batch_preturbed_images, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
             texts.extend(batch_captions)
@@ -173,13 +172,10 @@ def main():
     for batch_i, ((adv_images, _, path), (clean_images, _, _)) in enumerate(zip(data_loader, clean_data_loader)):
         if batch_size * (batch_i+1) > config.num_samples:
             break
-
         adv_images = adv_images.to(device)
         clean_images = clean_images.to(device)
-        print("image", adv_images.shape, clean_images.shape)
         # obtain all text features (via CLIP text encoder)
-        tgt_text_features = target_text_features[batch_size * (batch_i): batch_size * (batch_i+1)]
-        print("txt features shape", tgt_text_features.shape)
+        tgt_text_features = target_text_features[batch_size * batch_i: batch_size * (batch_i+1)]
 
         # ------------------- random gradient-free method
         delta = adv_images - clean_images
@@ -197,14 +193,11 @@ def main():
             print(f"------- BATCH {batch_i} / STEP {step_idx} --------")
             # step 1. obtain captions of purturbed images
             images_repeat = adv_images.repeat(num_query, 1, 1, 1) # size = (num_query x batch_size, 3, 224, 224)
-            print("images_repeat", images_repeat.shape)
             query_noise = torch.randn_like(images_repeat).sign() # Rademacher noise
             perturbed_versions= torch.clamp(images_repeat + (sigma * query_noise), 0.0, 255.0)  # size = (num_query x batch_size, 3, 224, 224)
             text_of_perturbed_imgs = get_victim_captions_for_preturbed(perturbed_versions)
-            print("text_of_perturbed_imgs", len(text_of_perturbed_imgs))
             perturb_text_features = get_texts_clip_features(text_of_perturbed_imgs,
                                                             clip_model)  # should be (num_query x batch_size, 768)
-            print("perturb_text_features", perturb_text_features.shape)
 
             # step 2. estimate grad
             coefficient = torch.sum((perturb_text_features - adv_text_features.repeat(num_query, 1)) * tgt_text_features.repeat(num_query, 1), dim=-1)
@@ -224,13 +217,12 @@ def main():
                 delta = torch.clamp(delta + alpha * torch.sign(pseudo_gradient), min=-epsilon, max=epsilon)
                 adv_images = torch.clamp(clean_images+delta, 0.0, 255.0)
 
-                print(f"{batch_i}-th img // {step_idx}-th step // max  delta", torch.max(torch.abs(delta)).item())
-                print(f"{batch_i}-th img // {step_idx}-th step // mean delta", torch.mean(torch.abs(delta)).item())
-
                 wandb.log(
                     {
                         "max delta:":  torch.max(torch.abs(delta)).item(),
-                        "mean delta:": torch.mean(torch.abs(delta)).item()
+                        "mean delta:": torch.mean(torch.abs(delta)).item(),
+                        "batch_idx": batch_i,
+                        "step_idx": step_idx,
                     }
                 )
                 unidiff_captions = generate_captions(config, adv_images, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
@@ -250,7 +242,7 @@ def main():
                         best_captions[j] = unidiff_captions[j]
                         best_step_info[j] = step_idx
 
-                torch.cuda.empty_cache()
+            torch.cuda.empty_cache()
 
         # log clip score after query
         if config.wandb:
@@ -272,13 +264,14 @@ def main():
                     query_attack_results[obj_idx],
                     best_step_info[j]
                 )
-            wandb.log({"results_table": table})
 
         # log text after query
-        print("best captions after:", best_captions)
+        print("best captions after query attack:", best_captions)
         with open(f"{config.output_path}.txt", 'a') as f:
             for best_caption in best_captions:
                 f.write(f"{best_caption}\n")
+
+    wandb.log({"results_table": table})
 
 if __name__ == "__main__":
     main()

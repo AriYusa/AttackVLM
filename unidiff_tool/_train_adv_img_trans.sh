@@ -3,8 +3,10 @@
 
 # certain hyper-parameters can be modified based on user's preference
 python _train_adv_img_trans.py \
-    --output 'dir of output white-box transfer images' \
-    --epsilon 8 \
-    --batch_size 250 \
-    --num_samples 1000 \
-    --steps 300 \
+    --output 'images_adv_ii' \
+    --cle_data_path 'clean_images' \
+    --tgt_data_path 'gen_images' \
+    --wandb_project_name 'transfer_attack' \
+    --batch_size 2 \
+    --num_samples 6 \
+    --steps 300
