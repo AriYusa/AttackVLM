@@ -1,8 +1,6 @@
 import torch
 import utils
-import os
 from dpm_solver_pp import NoiseScheduleVP, DPM_Solver
-from absl import logging
 import time
 from torchvision.transforms.functional import center_crop
 
@@ -17,9 +15,6 @@ def prepare_contexts(config, images_batch, clip_img_model, clip_img_model_prepro
     # image [batch, 3, 224, 224]
     resolution = config.z_shape[-1] * 8
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-    # img_contexts = torch.randn(batch_size, 2 * config.z_shape[0], config.z_shape[1], config.z_shape[2])
-    # clip_imgs = torch.randn(batch_size, 1, config.clip_img_dim)
 
     def get_img_feature(images_batch):
         images_batch = center_crop(images_batch, resolution)
@@ -81,18 +76,12 @@ def generate_captions(config, images_batch, nnet, caption_decoder,autoencoder, c
                 end_time = time.time()
                 print(f'\ngenerate {batch_size} samples with {config.sample.sample_steps} steps takes {end_time - start_time:.2f}s')
 
-        os.makedirs(config.output_path, exist_ok=True)
         return x
 
     _text = sample_fn(z=z_img, clip_img=clip_imgs)  # conditioned on the image embedding
     samples = caption_decoder.generate_captions(_text)
-    logging.info(samples)
-    os.makedirs(config.output_path, exist_ok=True)
-    with open(os.path.join(config.output_path, f'{config.mode}.txt'), 'w') as f:
-        print('\n'.join(samples), file=f)
 
     print(f'\nGPU memory usage: {torch.cuda.max_memory_reserved() / 1024 ** 3:.2f} GB')
-    print(f'\nresults are saved in {os.path.join(config.output_path)} :)')
 
     with torch.no_grad():
         # Rest of your operations that might need clearing

@@ -1,45 +1,15 @@
-import argparse
 import os
 import clip
 import numpy as np
 import torch
-from unet_gen_captions import generate_captions
+from unidif_gen_captions import generate_captions
 import wandb
+from omegaconf import OmegaConf
 
-### unidiff lib
-import ml_collections
-import utils
-from absl import logging
-import libs.autoencoder
-import libs.clip
-from libs.caption_decoder import CaptionDecoder
-
-from common_utils import get_clip_model_img_preprocess, seedEverything, ImageFolderWithPaths, \
-    get_main_preprocess
+from common_utils import seedEverything, ImageFolderWithPaths, \
+    get_main_preprocess, load_models
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
-def d(**kwconfig):
-    """Helper of creating a config dict."""
-    return ml_collections.ConfigDict(initial_dictionary=kwconfig)
-
-def load_models(config):
-    nnet = utils.get_nnet(**config.nnet)
-    logging.info(f'load nnet from {config.nnet_path}')
-    nnet.load_state_dict(torch.load(config.nnet_path, map_location='cpu'))
-    nnet.to(device)
-    nnet.eval()
-
-    caption_decoder = CaptionDecoder(device=device, **config.caption_decoder)
-
-    autoencoder = libs.autoencoder.get_model(**config.autoencoder)
-    autoencoder.to(device)
-
-    clip_model, orig_preprocess = clip.load("ViT-B/32", device=device, jit=False)
-    clip_img_size = orig_preprocess.transforms[0].size
-    clip_model_img_preprocess = get_clip_model_img_preprocess(clip_img_size)
-
-    return nnet, caption_decoder, autoencoder, clip_model, clip_model_img_preprocess
 
 def get_texts_clip_features(texts, clip_model):
     with torch.no_grad():
@@ -48,79 +18,15 @@ def get_texts_clip_features(texts, clip_model):
         text_features = text_features / text_features.norm(dim=1, keepdim=True)
         return text_features.detach()
 
+
 def main():
-    seedEverything()
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--nnet_path", default="models/uvit_v1.pth", type=str)
-    parser.add_argument("--mode", default="i2t", type=str)
-    
-    parser.add_argument("--batch_size", default=2, type=int)
-    parser.add_argument("--num_samples", default=6, type=int)
-    parser.add_argument("--input_res", default=224, type=int)
-    parser.add_argument("--alpha", default=1.0, type=float)
-    parser.add_argument("--epsilon", default=8, type=int)
-    parser.add_argument("--steps", default=3, type=int)
-    parser.add_argument("--output_path", default="temp", type=str)
-    parser.add_argument("--adv_data_path", default="temp", type=str)
-    parser.add_argument("--clean_data_path", default="temp", type=str)
-    parser.add_argument("--adv_text_path", default="temp", type=str)
-    parser.add_argument("--tgt_text_path", default="temp", type=str)
-    
-    parser.add_argument("--delta", default="normal", type=str)
-    parser.add_argument("--save_img", action='store_true')
-    parser.add_argument("--num_query", default=3, type=int)
-    parser.add_argument("--num_sub_query", default=3, type=int)
-    parser.add_argument("--sigma", default=16, type=float)
-    
-    parser.add_argument("--wandb", action="store_true")
-    parser.add_argument("--wandb_project_name", type=str, default='temp_proj')
-    parser.add_argument("--wandb_run_name", type=str, default='temp_run')
-    
-    config = parser.parse_args()
+    config = OmegaConf.load("trans_and_query_fixed_budget_config.yaml")
+    config.unidif = OmegaConf.load("unidif_config.yaml")
+    config = OmegaConf.merge(config, OmegaConf.from_cli())
 
-    config.seed = 1234
-    config.pred = 'noise_pred'
-    config.z_shape = (4, 64, 64)
-    config.clip_img_dim = 512
-    config.clip_text_dim = 768
-    config.text_dim = 64  # reduce dimension
-    config.data_type = 1
+    seedEverything(config.seed)
 
-    config.autoencoder = d(
-        pretrained_path='models/autoencoder_kl.pth',
-    )
-
-    config.caption_decoder = d(
-        pretrained_path="models/caption_decoder.pth",
-        hidden_dim=config.text_dim
-    )
-
-    config.nnet = d(
-        name='uvit_multi_post_ln_v1',
-        img_size=64,
-        in_chans=4,
-        patch_size=2,
-        embed_dim=1536,
-        depth=30,
-        num_heads=24,
-        mlp_ratio=4,
-        qkv_bias=False,
-        pos_drop_rate=0.,
-        drop_rate=0.,
-        attn_drop_rate=0.,
-        mlp_time_embed=False,
-        text_dim=config.text_dim,
-        num_text_tokens=77,
-        clip_img_dim=config.clip_img_dim,
-        use_checkpoint=True
-    )
-    config.sample = d(
-        sample_steps=50,
-        scale=7.,
-        t2i_cfg_mode='true_uncond'
-    )
-    
-    nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess = load_models(config)
+    nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess = load_models(config.unidif, device)
 
     num_sub_query, num_query, sigma = config.num_sub_query, config.num_query, config.sigma
     batch_size    = config.batch_size
@@ -136,8 +42,12 @@ def main():
     clean_data_loader = torch.utils.data.DataLoader(clean_data, batch_size=batch_size, shuffle=False, num_workers=4)
 
     # org text/features
-    adv_vit_text_path = config.adv_text_path
-    with open(os.path.join(adv_vit_text_path), 'r') as f:
+    if not isinstance(config.adv_text_path, str):
+        adv_vit_text_path = list(config.adv_text_path)
+        adv_vit_text_path=os.path.join(*adv_vit_text_path)
+    else:
+        adv_vit_text_path=config.adv_text_path
+    with open(adv_vit_text_path, 'r') as f:
         unidiff_text_of_adv_vit  = f.readlines()[:config.num_samples]
         f.close()
 
@@ -156,8 +66,8 @@ def main():
     transfer_attack_results = torch.sum(adv_vit_text_features * target_text_features, dim=1).squeeze().detach().cpu().numpy()
     query_attack_results = np.zeros_like(transfer_attack_results)
 
-    if config.wandb:
-        run = wandb.init(project=config.wandb_project_name, reinit=True, config=config)
+    if config.wandb_project_name:
+        run = wandb.init(project=config.wandb_project_name, reinit=True, config=OmegaConf.to_container(config, resolve=True))
         table = wandb.Table(columns=[ "obj_idx", "transfer_caption", "transfer_score", "best_query_caption", "best_query_score", "best_step_idx"])
 
     def get_victim_captions_for_preturbed(perturbed_images):
@@ -165,7 +75,7 @@ def main():
         for query_idx in range(num_query*batch_size//num_sub_query):
             batch_preturbed_images = perturbed_images[num_sub_query * (query_idx) : num_sub_query * (query_idx+1)]
             with torch.no_grad():
-                batch_captions = generate_captions(config, batch_preturbed_images, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
+                batch_captions = generate_captions(config.unidif, batch_preturbed_images, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
             texts.extend(batch_captions)
         return texts
     
@@ -185,11 +95,11 @@ def main():
         best_step_info = np.zeros(batch_size)
 
         with torch.no_grad():
-            unidiff_captions = generate_captions(config, adv_images, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
+            unidiff_captions = generate_captions(config.unidif, adv_images, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
             adv_text_features = get_texts_clip_features(unidiff_captions, clip_model)
             torch.cuda.empty_cache()
 
-        for step_idx in range(config.steps):
+        for step_idx in range(config.rgf_steps):
             print(f"------- BATCH {batch_i} / STEP {step_idx} --------")
             # step 1. obtain captions of purturbed images
             images_repeat = adv_images.repeat(num_query, 1, 1, 1) # size = (num_query x batch_size, 3, 224, 224)
@@ -201,7 +111,8 @@ def main():
 
             # step 2. estimate grad
             coefficient = torch.sum((perturb_text_features - adv_text_features.repeat(num_query, 1)) * tgt_text_features.repeat(num_query, 1), dim=-1)
-            wandb.log(
+            if config.wandb_project_name:
+                wandb.log(
                 {
                     "coefficient": coefficient.mean(dim=0).item(),
                     "step_idx": step_idx,
@@ -225,7 +136,7 @@ def main():
                         "step_idx": step_idx,
                     }
                 )
-                unidiff_captions = generate_captions(config, adv_images, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
+                unidiff_captions = generate_captions(config.unidif, adv_images, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
                 adv_text_features = get_texts_clip_features(unidiff_captions, clip_model)
 
                 clip_scores = torch.sum(adv_text_features * tgt_text_features, dim=1)
@@ -245,7 +156,7 @@ def main():
             torch.cuda.empty_cache()
 
         # log clip score after query
-        if config.wandb:
+        if config.wandb_project_name:
             wandb.log(
                 {
                     "moving-avg-transfer-vitb32"  : np.mean(transfer_attack_results[:batch_size*(batch_i+1)]),
@@ -267,11 +178,13 @@ def main():
 
         # log text after query
         print("best captions after query attack:", best_captions)
-        with open(f"{config.output_path}.txt", 'a') as f:
+        os.makedirs(config.output_path, exist_ok=True)
+        with open(os.path.join(config.output_path, "captions.txt"), 'a') as f:
             for best_caption in best_captions:
                 f.write(f"{best_caption}\n")
 
-    wandb.log({"results_table": table})
+        if config.wandb_project_name:
+            wandb.log({"results_table": table})
 
 if __name__ == "__main__":
     main()

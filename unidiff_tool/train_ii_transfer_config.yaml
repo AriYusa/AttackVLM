@@ -1,0 +1,12 @@
+batch_size: 4  # Batch size for training
+num_samples: 100  # Number of samples
+input_res: 224  # Input image resolution
+clip_encoder: "ViT-B/32"  # CLIP model type
+alpha: 1.0  # Scaling factor
+epsilon: 8  # Epsilon value
+steps: 300  # Number of steps
+
+output_path: "temp"  # Output folder
+cle_data_path: null  # Path of clean images (None by default)
+tgt_data_path: null  # Path of target images (None by default)
+wandb_project_name: null  # If specified wandb is used

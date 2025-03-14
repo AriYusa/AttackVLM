@@ -5,6 +5,13 @@ import torch
 import torchvision
 from torchvision.transforms import InterpolationMode
 
+# unidiff_imports
+import clip
+import utils
+import libs.autoencoder
+import libs.clip
+from libs.caption_decoder import CaptionDecoder
+
 BICUBIC = InterpolationMode.BICUBIC
 
 # seed for everything
@@ -69,3 +76,22 @@ def get_clip_model_img_preprocess(resolution):
             std=torch.Tensor([0.26862954, 0.26130258, 0.27577711])
         ),
     ])
+
+
+def load_models(config, device):
+    config.z_shape = tuple(config.z_shape)
+    nnet = utils.get_nnet(**config.nnet)
+    nnet.load_state_dict(torch.load(config.nnet_path, map_location='cpu'))
+    nnet.to(device)
+    nnet.eval()
+
+    caption_decoder = CaptionDecoder(device=device, **config.caption_decoder)
+
+    autoencoder = libs.autoencoder.get_model(**config.autoencoder)
+    autoencoder.to(device)
+
+    clip_model, orig_preprocess = clip.load("ViT-B/32", device=device, jit=False)
+    clip_img_size = orig_preprocess.transforms[0].size
+    clip_model_img_preprocess = get_clip_model_img_preprocess(clip_img_size)
+
+    return nnet, caption_decoder, autoencoder, clip_model, clip_model_img_preprocess

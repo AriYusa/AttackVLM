@@ -1,0 +1,36 @@
+nnet_path: "models/uvit_v1.pth"
+
+autoencoder:
+  pretrained_path: "models/autoencoder_kl.pth"  # Path to pretrained autoencoder
+
+caption_decoder:
+  pretrained_path: "models/caption_decoder.pth"
+  hidden_dim: 64  # Must match text_dim
+
+nnet:
+  name: "uvit_multi_post_ln_v1"
+  img_size: 64
+  in_chans: 4
+  patch_size: 2
+  embed_dim: 1536
+  depth: 30
+  num_heads: 24
+  mlp_ratio: 4
+  qkv_bias: false
+  pos_drop_rate: 0.0
+  drop_rate: 0.0
+  attn_drop_rate: 0.0
+  mlp_time_embed: false
+  text_dim: 64  # Must match text_dim
+  clip_img_dim: 512
+  num_text_tokens: 77
+  use_checkpoint: true
+
+sample:
+  sample_steps: 50  # Number of sampling steps
+  scale: 7.0  # Scaling factor
+
+z_shape: [4, 64, 64]  # Latent space shape
+clip_text_dim: 768  # CLIP text embedding dimension
+text_dim: 64  # Reduced text dimension
+data_type: 1  # Data type identifier
