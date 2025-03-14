@@ -10,7 +10,7 @@ python _train_trans_and_query_fixed_budget.py \
     --epsilon 8 \
     --sigma 8 \
     --delta 'zero' \
-    --num_query 4 \
+    --num_query 2 \
     --num_sub_query 2 \
     --wandb \
     --wandb_project_name unidiff-attack \

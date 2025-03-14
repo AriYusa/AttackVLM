@@ -216,7 +216,7 @@ def main():
 
     # baseline results
     transfer_attack_results = torch.sum(adv_vit_text_features * target_text_features, dim=1).squeeze().detach().cpu().numpy()
-    query_attack_results = np.array.zeros(transfer_attack_results)
+    query_attack_results = np.zeros_like(transfer_attack_results)
 
     if config.wandb:
         run = wandb.init(project=config.wandb_project_name, reinit=True)
@@ -224,7 +224,7 @@ def main():
 
     def get_victim_captions_for_preturbed(perturbed_images):
         texts = []
-        for query_idx in range(num_query//num_sub_query):
+        for query_idx in range(num_query*batch_size//num_sub_query):
             batch_preturbed_images = perturbed_images[num_sub_query * (query_idx) : num_sub_query * (query_idx+1)]
             print("batch_preturbed_images", batch_preturbed_images.shape)
             with torch.no_grad():
