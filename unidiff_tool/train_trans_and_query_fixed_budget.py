@@ -1,6 +1,7 @@
 import os
 import clip
 import numpy as np
+import pandas as pd
 import torch
 from unidif_gen_captions import generate_captions
 import wandb
@@ -18,6 +19,14 @@ def get_texts_clip_features(texts, clip_model):
         text_features = text_features / text_features.norm(dim=1, keepdim=True)
         return text_features.detach()
 
+def compute_clip_scores(adv_texts, tgt_texts, clip_models):
+    results = {}
+
+    for model_name, model in clip_models.items():
+        adv_features = get_texts_clip_features(adv_texts, model)
+        tgt_features = get_texts_clip_features(tgt_texts, model)
+        results[model_name] = torch.sum(adv_features * tgt_features, dim=1).squeeze().detach().cpu().numpy()
+    return results
 
 def main():
     config = OmegaConf.load("trans_and_query_fixed_budget_config.yaml")
@@ -26,7 +35,19 @@ def main():
 
     seedEverything(config.seed)
 
-    nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess = load_models(config.unidif, device)
+    nnet, caption_decoder, autoencoder, clip_model, clip_model_img_preprocess = load_models(config.unidif, device)
+
+    # Load additional CLIP models
+    clip_img_model_rn50, _ = clip.load("RN50", device=device, jit=False)
+    clip_img_model_rn101, _ = clip.load("RN101", device=device, jit=False)
+    clip_img_model_vitb16, _ = clip.load("ViT-B/16", device=device, jit=False)
+    clip_img_model_vitl14, _ = clip.load("ViT-L/14", device=device, jit=False)
+    clip_models = {
+        "RN50": clip_img_model_rn50,
+        "RN101": clip_img_model_rn101,
+        "ViT-B/16": clip_img_model_vitb16,
+        "ViT-L/14": clip_img_model_vitl14,
+    }
 
     num_sub_query, num_query, sigma = config.num_sub_query, config.num_query, config.sigma
     batch_size    = config.batch_size
@@ -51,24 +72,23 @@ def main():
         unidiff_text_of_adv_vit  = f.readlines()[:config.num_samples]
         f.close()
 
-    adv_vit_text_features = get_texts_clip_features(unidiff_text_of_adv_vit, clip_model)
-    
     # tgt text/features
     tgt_text_path = config.tgt_text_path
     with open(os.path.join(tgt_text_path), 'r') as f:
         tgt_text  = f.readlines()[:config.num_samples] 
         f.close()
     
-    # clip text features of the target
+    # Calculate baseline similarity
+    adv_vit_text_features = get_texts_clip_features(unidiff_text_of_adv_vit, clip_model)
     target_text_features = get_texts_clip_features(tgt_text, clip_model)
-
-    # baseline results
     transfer_attack_results = torch.sum(adv_vit_text_features * target_text_features, dim=1).squeeze().detach().cpu().numpy()
     query_attack_results = np.zeros_like(transfer_attack_results)
 
+    # Compute similarity for additional CLIP models
+    baseline_scores = compute_clip_scores(unidiff_text_of_adv_vit, tgt_text, clip_models)
+
     if config.wandb_project_name:
         run = wandb.init(project=config.wandb_project_name, reinit=True, config=OmegaConf.to_container(config, resolve=True))
-        table = wandb.Table(columns=[ "obj_idx", "transfer_caption", "transfer_score", "best_query_caption", "best_query_score", "best_step_idx"])
 
     def get_victim_captions_for_preturbed(perturbed_images):
         texts = []
@@ -78,6 +98,13 @@ def main():
                 batch_captions = generate_captions(config.unidif, batch_preturbed_images, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
             texts.extend(batch_captions)
         return texts
+    
+    # Initialize empty DataFrame for logging
+    columns = ["img_id", "baseline_score", "baseline_caption", "query_attack_score", "best_caption",
+               "best_rgf_step"]
+    columns.extend([f"{model_name}_baseline_score" for model_name in clip_models.keys()])
+    columns.extend([f"{model_name}_query_attack_score" for model_name in clip_models.keys()])
+    log_df = pd.DataFrame(columns=columns)
     
     for batch_i, ((adv_images, _, path), (clean_images, _, _)) in enumerate(zip(data_loader, clean_data_loader)):
         if batch_size * (batch_i+1) > config.num_samples:
@@ -155,36 +182,38 @@ def main():
 
             torch.cuda.empty_cache()
 
-        # log clip score after query
+        # Compute similarity for additional CLIP models
+        batch_similarities = compute_clip_scores(unidiff_captions, tgt_text[batch_i*batch_size:batch_i*batch_size+batch_size], clip_models)
+
+        batch_logs = []
+        for img_j in range(batch_size):
+            obj_idx = batch_i * batch_size + img_j
+                
+            img_info = {
+                "img_id": obj_idx,
+                "baseline_score": transfer_attack_results[obj_idx],
+                "baseline_caption":unidiff_text_of_adv_vit[obj_idx],
+                "query_attack_score": query_attack_results[img_j],
+                "best_caption": best_captions[img_j],
+                "best_rgf_step": best_step_info[img_j],
+            }
+            for model_name in batch_similarities.keys():
+                img_info.update({
+                    f"{model_name}_baseline_score":baseline_scores[model_name][obj_idx],
+                    f"{model_name}_query_attack_score":batch_similarities[model_name][img_j],
+                })
+            batch_logs.append(img_info)
+
+        # Append batch logs to the DataFrame
+        batch_df = pd.DataFrame(batch_logs)
+        log_df = pd.concat([log_df, batch_df], ignore_index=True)
+
+        # Save to CSV
+        log_df.to_csv("experiment_log.csv", index=False)
+
         if config.wandb_project_name:
-            wandb.log(
-                {
-                    "moving-avg-transfer-vitb32"  : np.mean(transfer_attack_results[:batch_size*(batch_i+1)]),
-                    "moving-avg-query-vitb32": np.mean(query_attack_results[:batch_size*(batch_i+1)]),
-                }
-            )
+            wandb.save("experiment_log.csv")
 
-            # log information to wandb table
-            for j in range(batch_size):
-                obj_idx = batch_i * batch_size + j
-                table.add_data(
-                    obj_idx,
-                    unidiff_text_of_adv_vit[obj_idx],
-                    transfer_attack_results[obj_idx],
-                    best_captions[j],
-                    query_attack_results[obj_idx],
-                    best_step_info[j]
-                )
-
-        # log text after query
-        print("best captions after query attack:", best_captions)
-        os.makedirs(config.output_path, exist_ok=True)
-        with open(os.path.join(config.output_path, "captions.txt"), 'a') as f:
-            for best_caption in best_captions:
-                f.write(f"{best_caption}\n")
-
-        if config.wandb_project_name:
-            wandb.log({"results_table": table})
 
 if __name__ == "__main__":
     main()
