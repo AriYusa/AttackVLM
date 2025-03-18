@@ -185,7 +185,7 @@ if __name__ == "__main__":
     data_loader   = torch.utils.data.DataLoader(vit_adv_data, batch_size=batch_size, shuffle=False, num_workers=24)
 
     # clean img, same size as clip img encoder
-    clean_data    = ImageFolderWithPaths("../imagenet_resized_224", transform=transform)
+    clean_data    = ImageFolderWithPaths("../selected_imagenet_images", transform=transform)
     clean_data_loader = torch.utils.data.DataLoader(clean_data, batch_size=batch_size, shuffle=False, num_workers=24)
     
     # org text/features
@@ -201,7 +201,7 @@ if __name__ == "__main__":
         adv_vit_text_features = adv_vit_text_features.detach()
     
     # tgt text/features
-    tgt_text_path = './_coco_captions_10000.txt'
+    tgt_text_path = './coco_captions.txt'
     with open(os.path.join(tgt_text_path), 'r') as f:
         tgt_text  = f.readlines()[:config.num_samples] 
         f.close()
