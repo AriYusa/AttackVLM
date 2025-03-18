@@ -62,12 +62,7 @@ def main():
     clean_data    = ImageFolderWithPaths(config.clean_data_path, transform=transform)
     clean_data_loader = torch.utils.data.DataLoader(clean_data, batch_size=batch_size, shuffle=False, num_workers=4)
 
-    # org text/features
-    if not isinstance(config.adv_text_path, str):
-        adv_vit_text_path = list(config.adv_text_path)
-        adv_vit_text_path=os.path.join(*adv_vit_text_path)
-    else:
-        adv_vit_text_path=config.adv_text_path
+    adv_vit_text_path = config.adv_text_path
     with open(adv_vit_text_path, 'r') as f:
         unidiff_text_of_adv_vit  = f.readlines()[:config.num_samples]
         f.close()
@@ -75,7 +70,8 @@ def main():
     # tgt text/features
     tgt_text_path = config.tgt_text_path
     with open(os.path.join(tgt_text_path), 'r') as f:
-        tgt_text  = f.readlines()[:config.num_samples] 
+        tgt_text  = f.readlines()[:config.num_samples]
+        tgt_text = [text.strip().strip(".") for text in tgt_text]
         f.close()
     
     # Calculate baseline similarity
@@ -182,6 +178,8 @@ def main():
 
             torch.cuda.empty_cache()
 
+        print(unidiff_captions)
+        print(tgt_text[batch_i*batch_size:batch_i*batch_size+batch_size])
         # Compute similarity for additional CLIP models
         batch_similarities = compute_clip_scores(unidiff_captions, tgt_text[batch_i*batch_size:batch_i*batch_size+batch_size], clip_models)
 

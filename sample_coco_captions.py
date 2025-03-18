@@ -61,7 +61,7 @@ def save_captions_to_csv(caption_data):
 
     with open("coco_captions.txt", "w") as f:
         for caption in caption_data.values():
-            f.write(caption['caption'] + "\n")
+            f.write(caption['caption'].strip() + "\n")
 
 
 if __name__ == "__main__":

@@ -64,4 +64,5 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    copy_selected_images(args.source, args.target, args.num)
+    print(args)
+    copy_selected_images(args.source_path, args.target_path, args.num_samples)tar -czvf gen_images.tar.gz gen_images/

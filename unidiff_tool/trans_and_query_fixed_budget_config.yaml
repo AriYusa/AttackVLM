@@ -4,10 +4,9 @@ wandb_project_name: null  # If specified wandb is used
 
 adv_data_path: null  # Path to adversarial data
 clean_data_path: null  # Path to clean dataset
-output_path: null  # Path to store generated captions
 
-batch_size: 2  # Batch size for training
-num_samples: 6  # Number of samples to process
+batch_size: 1  # Batch size for training
+num_samples: 100  # Number of samples to process
 input_res: 224  # Input image resolution
 alpha: 1.0  # Some scaling factor
 epsilon: 1.0  # Epsilon parameter

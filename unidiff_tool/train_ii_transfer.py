@@ -61,11 +61,6 @@ def main(args):
             delta.data = d
             delta.grad.zero_()
 
-            # Log progress
-            print(f"iter {i}/{args.num_samples // args.batch_size} step:{step_idx:3d}, "
-                  f"mean embedding similarity={embedding_sim.item():.5f}, "
-                  f"max delta={torch.max(torch.abs(delta)).item():.3f}, "
-                  f"mean delta={torch.mean(torch.abs(delta)).item():.3f}")
             if args.wandb_project_name:
                 wandb.log({"batch": i,
                         "preturbation_step": step_idx,

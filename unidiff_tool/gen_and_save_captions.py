@@ -1,6 +1,7 @@
 import torch
 import os
 from omegaconf import OmegaConf
+from tqdm import tqdm
 
 from common_utils import seedEverything, load_models, get_main_preprocess, ImageFolderWithPaths
 from unidif_gen_captions import generate_captions
@@ -18,18 +19,17 @@ def main():
     dataset  = ImageFolderWithPaths(config.images_path, transform=transform)
     data_loader   = torch.utils.data.DataLoader(dataset, batch_size=config.batch_size, shuffle=False, num_workers=4)
 
-    all_captions = []
-    for i, (images, _, _) in enumerate(data_loader):
+    os.makedirs(config.output_path, exist_ok=True)
+    for i, (images, _, _) in enumerate(tqdm(data_loader)):
         if config.batch_size * (i + 1) > config.num_samples:
             break
 
         images = images.to(device)
         batch_captions = generate_captions(config.unidif, images, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
-        all_captions.extend(batch_captions)
 
-    os.makedirs(config.output_path, exist_ok=True)
-    with open(os.path.join(config.output_path, f'captions.txt'), 'w') as f:
-        f.write('\n'.join(all_captions))
+        with open(os.path.join(config.output_path, f'captions.txt'), 'a') as f:
+            f.write('\n'.join(batch_captions))
+            f.write('\n')
 
 if __name__ == "__main__":
     main()

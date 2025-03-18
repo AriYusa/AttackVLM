@@ -12,7 +12,6 @@ a man sleeping with his cat next to him
 An all white kitchen with an electric stovetop. 
 The telephone has a banana where the receiver should be.
 A dog sitting between its masters feet on a footstool watching tv
-
 Man in motorcycle leathers standing in front of a group of bikes
 Set of toy animals sitting in front of a red wooden wagon.
 A woman wearing a hat & pink top takes a selfie in front of a bathroom mirror.
@@ -228,7 +227,6 @@ a jet on three pillars in front of a building
 A white table topped with cakes and nuts.
 A group of large passenger jets parked in front of an airport.
 Two men talking to each other on a street corner
-
 A kitchen with a counter and a table with chairs.
 Person cooking an eggs on a black pot on a stove. 
 The bathroom is white and looks very clean.
@@ -315,7 +313,6 @@ A large propeller plane mounted to the ceiling of a building.
 a green traffic light a street  some buildings and some other lights
 a man standing in front of a toilet taking a piss
 The little  girl is eating a banana.
-
 A dirty public bathroom with a handicap sign located above the toilet. 
 Toilet with a black lid and rolls of toilet tissue in a bathroom
 Two planes in runway and another plane in the sky.
@@ -406,7 +403,6 @@ A view A large metal structure near the side of a building
 There is a bike that is parked by a bench, and an airplane that is high in the sky
 A young man is dressed in a school skirt outfit.
 a plane flying by a bright moon in the sky
-
 A flat screen TV sitting in a living room in front of a dining room table.
 Two large jets sitting on top of an airport runway.
 A television is reflected from a bathroom mirror.
@@ -520,7 +516,6 @@ Puppy chewing on toilet paper in the bathroom.
 A bathroom containing a toilet, sink and bathtub with shower, with no accessories.
 A plain, white bathroom with a sink and a tub.
 An old toilet in a bathroom with extended plumbing 
-
 A bedroom with built in television and open fireplace
 a chicken meal with carrots broccoli and rice
 Street sign painted on a road that looks like a bicycle. 
@@ -608,7 +603,6 @@ The tiny white bathroom has a toilet and pedestal sink.
 A laptop computer sitting on top of a table.
 A cat walking through a kitchen by a eating tray.
 A photo of an outside with various things in the scene.
-
 A young man sitting on top of a white bench.
 A table with a plate of food and a urinal basin
 A man is smiling for the camera while standing in a kitchen.
@@ -1447,9 +1441,7 @@ A white and green rusted fire hydrant spewing out frozen water.
 A train traveling down tracks near a train station.
 a giraffe in a field with trees in the background
 The encompassing of an outside town in the picture.
-
 A photograph of an outside with numerous things in the scene.
-
 A cluster of black and white sheep hang out by a fence.
 an old passenger bus parked next to a walgreens 
 A person holds a bag while walking on train tracks.
@@ -1815,7 +1807,6 @@ A couple of men standing next to train tracks.
 A close up of a stop sign with two hand written notes taped to it.
 A newly married couple walking down a street.
 A man in a suit smiling at the camera
-
 A cat playing with it's reflection in a mirror.
 Sail boats sail over a body of water while people stand near the shoreline. 
 A couple of food trucks parked in a parking lot.
@@ -2227,7 +2218,6 @@ Teddybear, kitten and calico cat are all taking a nap on the bed.
 A bike leaning up to a parking meter.
 A young man standing in front of a luggage carousel at an airport.
 There is a room with distinctive things in the picture. 
-
 A black and white cat sitting on top of a chair.
 A couple of people that are standing near a train.
 A utility truck is parked in the street beside traffic cones.
@@ -2309,7 +2299,6 @@ The woman holding an umbrella smiles on the narrow street beside the sidewalk.
 the man is working on his laptop while he waits for the train.
 A woman in a bikini laying under a red umbrella.
 A cow getting relief as it is being milked.
-
 A young man and woman holding their heads close to each other.
 A man and woman look into each others eyes while getting married.
 there are many boats that are parked at this dock
@@ -2404,8 +2393,6 @@ The child smiles brightly while being handed a pink umbrella.
 Large canoe with many people on lake with trees lining shore.
 A woman walking a small white dog down a street.
 A grass yard area that has several open umbrellas laid on the grass and various people around the roadway area.
-
-
 An outdoor area with a large bear and two smaller bears facing the wooded tree area.
 some people are sitting on a trolly outside
 Photography equipment and a light sitting in a room.
@@ -2751,7 +2738,6 @@ a person wearing a blue jacket is wearing skis and snowy trees
 A zebra staring blankly near a watering hole.
 A man riding a skateboard on top of a wooden bench.
 There are two men playing frisbee on a field 
-
 A white piece of cake sitting on top of a plate.
 A pair of zebra's leaning over eating grass in a field.
 A man is skate boarding down a path and a dog is running by his side.
@@ -3022,7 +3008,6 @@ a couple of people are outside near some trees
 Youngster on a skateboard, trying simple tip up stunt.
 a bunch of food is layed out next to an oven
 Two horses grazing on grass in the sun
-
 A group of horses are grazing in the field.
 Two yellow fruits hanging on branches full of leaves. 
 A man taking a picture of plates of food.
@@ -3060,7 +3045,6 @@ a person riding skis on a snowy slope
 There is a man skateboard on the side of a wall.
 A man riding skis on top of snow covered ground.
 An individual is capture in the stillness of the picture.
-
 A baseball game showing a batter waiting for a pitch.
 A girl on top of skate board on a street.
 A zebra playing on a field with logs of tree
@@ -3396,7 +3380,6 @@ Three laptop computers and a desktop computer sit next to each other.
 A man standing on a clay tennis court with a racquet.
 Old baseball bats are turned into a seat.
 A couple stands next to a wedding cake.
-
 an image of a woman holding a cake 
 A pile of food sitting on top of a table next to a  glass of wine.
 A wedding cake with fresh flower sitting on a table.
@@ -3810,7 +3793,6 @@ A tennis player prepares to serve a tennis ball.
 A small room with a bed and window letting in light.
 I want the pizza that has extra cheese on it.
 A thing is in the outline and it shows up like something 
-
 a man playing tennis going for a low ball
 A woman holding a game controller as her friend watches.
 A pizza that is sitting on a plastic tray.
@@ -4568,8 +4550,6 @@ Woman showing off very large home made pizza.
 A woman standing in front of a camera in a room filled with a group of people. 
 A tennis ball and a woman with a racket on a tennis court.
 A teddy bear laying on top of a bed next to a table with beers.
-
-
 A mouse is next to a keyboard on a desk
 A red couch next to a brown chair in a living room.
 A tall clock sitting next to a fence and a forest.
@@ -4667,7 +4647,6 @@ A baseball player holding a bat while standing on a field.
 a picture of a cellphone on a cellphone
 A man playing Wii on a large flat screen tv 
 There is a person in the picture by itself.
-
 There is no image to describe for this question.
 A young boy swinging a baseball bat towards a ball.
 This is a large kite flying high in the sky.
@@ -4915,7 +4894,6 @@ There is a clock right outside of the tall building.
 A vase with various flowers in it sitting on a tiled counter.
 A table with plates of food that include corn and fruit.
 A plate filled with food sitting next to three glasses.
-
 A group of people at a dining table talking to each other.
 A person holding a huge teddy bear while riding a bike in the street.
 Bread and fruit are on a table with a knife and fork.

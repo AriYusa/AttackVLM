@@ -1,3 +1,7 @@
 .env
 .idea
 /gen_images
+/selected_imagenet_images
+/sel_image_net_3_5k
+gen_images.tar.gz
+selected_imagenet_images.tar.gz
