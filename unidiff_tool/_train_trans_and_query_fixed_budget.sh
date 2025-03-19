@@ -13,4 +13,4 @@ python _train_adv_img_query_fixed_budget.py \
     --sigma 8 \
     --delta 'zero' \
     --num_query 100 \
-    --num_sub_query 10 \\
+    --num_sub_query 10
