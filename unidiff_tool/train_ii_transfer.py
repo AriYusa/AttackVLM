@@ -1,4 +1,3 @@
-import argparse
 import os
 import clip
 import torch
@@ -53,8 +52,8 @@ def main(args):
             adv_image = image_org + delta
             adv_image_features = get_img_clip_features(adv_image, clip_model, clip_preprocess)
 
-            embedding_sim = torch.mean(torch.sum(adv_image_features * tgt_image_features, dim=1))
-            embedding_sim.backward()
+            loss = -torch.mean(torch.sum(adv_image_features * tgt_image_features, dim=1))
+            loss.backward()
 
             grad = delta.grad.detach()
             d = torch.clamp(delta + args.alpha * torch.sign(grad), min=-args.epsilon, max=args.epsilon)
@@ -64,7 +63,7 @@ def main(args):
             if args.wandb_project_name:
                 wandb.log({"batch": i,
                         "preturbation_step": step_idx,
-                        "mean_embedding_similarity": embedding_sim.item(),
+                        "mean_embedding_similarity": -loss.item(),
                         "max_delta": torch.max(torch.abs(delta)).item(),
                         "mean_delta": torch.mean(torch.abs(delta)).item()
                         })
