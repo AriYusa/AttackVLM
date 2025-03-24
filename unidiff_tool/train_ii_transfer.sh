@@ -4,5 +4,5 @@ python train_ii_transfer.py \
     tgt_data_path="../gen_images" \
     wandb_project_name="transfer_attack" \
     batch_size=10 \
-    num_samples=1000 \
+    num_samples=100 \
     steps=100

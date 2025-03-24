@@ -59,8 +59,7 @@ def get_main_preprocess(resolution):
         [
             torchvision.transforms.Resize(size=resolution, interpolation=BICUBIC),
             torchvision.transforms.CenterCrop(size=resolution),
-            torchvision.transforms.Lambda(lambda img: img.convert("RGB")),
-            torchvision.transforms.Lambda(lambda img: to_tensor(img)),
+            torchvision.transforms.ToTensor(),
         ]
     )
 
@@ -70,7 +69,6 @@ def get_clip_model_img_preprocess(resolution):
     return torchvision.transforms.Compose([
         torchvision.transforms.Resize(size=resolution, interpolation=BICUBIC),
         torchvision.transforms.CenterCrop(size=resolution),
-        torchvision.transforms.Lambda(lambda img: torch.clamp(img, 0.0, 255.0) / 255),
         torchvision.transforms.Normalize(
             mean=torch.Tensor([0.48145466, 0.4578275, 0.40821073]),
             std=torch.Tensor([0.26862954, 0.26130258, 0.27577711])

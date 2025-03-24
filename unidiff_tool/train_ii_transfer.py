@@ -47,29 +47,32 @@ def main(args):
         with torch.no_grad():
             tgt_image_features = get_img_clip_features(image_tgt, clip_model, clip_preprocess)
 
-        delta = torch.zeros_like(image_org, requires_grad=True)
+        delta = torch.empty_like(image_org).uniform_(-args.epsilon/255, args.epsilon/255)
+        delta.requires_grad = True
+
+        adv_image = torch.clamp(image_org + delta, 0, 1)
+
         for step_idx in range(args.steps):
-            adv_image = image_org + delta
             adv_image_features = get_img_clip_features(adv_image, clip_model, clip_preprocess)
 
-            loss = -torch.mean(torch.sum(adv_image_features * tgt_image_features, dim=1))
+            cos_sim = torch.mean(torch.sum(adv_image_features * tgt_image_features, dim=1))
+            loss = cos_sim
             loss.backward()
 
             grad = delta.grad.detach()
-            d = torch.clamp(delta + args.alpha * torch.sign(grad), min=-args.epsilon, max=args.epsilon)
+            d = torch.clamp(delta + args.alpha/255 * torch.sign(grad), min=-args.epsilon/255, max=args.epsilon/255)
             delta.data = d
             delta.grad.zero_()
+
+            adv_image = torch.clamp(image_org + delta, 0, 1)
 
             if args.wandb_project_name:
                 wandb.log({"batch": i,
                         "preturbation_step": step_idx,
-                        "mean_embedding_similarity": -loss.item(),
+                        "mean_embedding_similarity": cos_sim.item(),
                         "max_delta": torch.max(torch.abs(delta)).item(),
                         "mean_delta": torch.mean(torch.abs(delta)).item()
                         })
-
-        adv_image = image_org + delta
-        adv_image = torch.clamp(adv_image / 255.0, 0.0, 1.0)
 
         # Log
         batch_time = time.time() - start_time
