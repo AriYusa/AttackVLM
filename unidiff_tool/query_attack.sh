@@ -1,11 +1,11 @@
 python query_attack.py \
-    adv_data_path='../ii_transfer_images' \
-    adv_text_path="../ii_transfer_images/captions.txt" \
+    adv_data_path='../img_img_transfer_images' \
+    adv_text_path="../img_img_transfer_images/unidiff_captions.txt" \
     clean_data_path='../selected_imagenet_images' \
     tgt_text_path='../coco_captions.txt' \
-    output_path='../query_images' \
+    output_path='../unififf_query_images' \
     batch_size=2 \
-    num_samples=100 \
+    num_samples=500 \
     rgf_steps=4 \
     epsilon=8 \
     sigma=8 \

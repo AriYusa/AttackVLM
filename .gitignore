@@ -1,14 +1,2 @@
 .env
 .idea
-/gen_images
-/selected_imagenet_images
-/sel_image_net_3_5k
-/it_transfer_images
-/unidiffuser
-/results
-/victim_results2
-/moondream_baseline_results
-/moondream_query_images
-gen_images.tar.gz
-selected_imagenet_images.tar.gz
-it_transfer_images.tar.gz

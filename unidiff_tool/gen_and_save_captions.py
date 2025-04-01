@@ -27,7 +27,7 @@ def main():
         images = images.to(device)
         batch_captions = generate_captions(config.unidif, images, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
 
-        with open(os.path.join(config.output_path, f'captions.txt'), 'a') as f:
+        with open(os.path.join(config.output_path, f'unidiff_captions.txt'), 'a') as f:
             f.write('\n'.join(batch_captions))
             f.write('\n')
 

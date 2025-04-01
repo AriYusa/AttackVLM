@@ -7,7 +7,7 @@ python query_attack.py \
     output_path='../moondream_query_images' \
     resolution=224 \
     batch_size=1 \
-    num_samples=100\
+    num_samples=500\
     rgf_steps=8 \
     epsilon=8 \
     sigma=8 \
