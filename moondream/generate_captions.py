@@ -4,18 +4,18 @@ from omegaconf import OmegaConf
 from tqdm import tqdm
 
 from common.utils import seedEverything, get_main_preprocess, ImageFolderWithPaths
-from img2txt import generate_captions, load_models
+
+from moondream.img2txt import load_model, generate_captions
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 def main():
     config = OmegaConf.from_cli()
-    config.unidif = OmegaConf.load("unidif_config.yaml")
     seedEverything(config.seed)
 
-    nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess = load_models(config.unidif, device)
+    model = load_model()
 
-    transform = get_main_preprocess(clip_model_img_preprocess.transforms[0].size)
+    transform = get_main_preprocess(config.resolution)
     dataset  = ImageFolderWithPaths(config.images_path, transform=transform)
     data_loader   = torch.utils.data.DataLoader(dataset, batch_size=config.batch_size, shuffle=False, num_workers=4)
 
@@ -24,10 +24,9 @@ def main():
         if config.batch_size * (i + 1) > config.num_samples:
             break
 
-        images = images.to(device)
-        batch_captions = generate_captions(config.unidif, images, nnet, caption_decoder,autoencoder, clip_model, clip_model_img_preprocess)
+        batch_captions = generate_captions(model, images)
 
-        with open(os.path.join(config.output_path, f'captions.txt'), 'a') as f:
+        with open(os.path.join(config.output_path, 'moondream_captions.txt'), 'a') as f:
             f.write('\n'.join(batch_captions))
             f.write('\n')
 

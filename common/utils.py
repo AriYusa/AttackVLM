@@ -1,22 +1,18 @@
 import os
 import random
+from os import truncate
+
 import numpy as np
 import torch
 import torchvision
 from torchvision.transforms import InterpolationMode
-
-# unidiff_imports
 import clip
-import utils
-import libs.autoencoder
-import libs.clip
-from libs.caption_decoder import CaptionDecoder
 
 BICUBIC = InterpolationMode.BICUBIC
 
 # seed for everything
 # credit: https://www.kaggle.com/code/rhythmcam/random-seed-everything
-DEFAULT_RANDOM_SEED = 2023
+DEFAULT_RANDOM_SEED = 31
 
 # basic random seed
 def seedBasic(seed=DEFAULT_RANDOM_SEED):
@@ -37,14 +33,6 @@ def seedTorch(seed=DEFAULT_RANDOM_SEED):
 def seedEverything(seed=DEFAULT_RANDOM_SEED):
     seedBasic(seed)
     seedTorch(seed)
-
-
-def to_tensor(pic):
-    mode_to_nptype = {"I": np.int32, "I;16": np.int16, "F": np.float32}
-    img = torch.from_numpy(np.array(pic, mode_to_nptype.get(pic.mode, np.uint8), copy=True))
-    img = img.view(pic.size[1], pic.size[0], len(pic.getbands()))
-    img = img.permute((2, 0, 1)).contiguous()
-    return img.to(dtype=torch.get_default_dtype())
 
 
 class ImageFolderWithPaths(torchvision.datasets.ImageFolder):
@@ -75,21 +63,29 @@ def get_clip_model_img_preprocess(resolution):
         ),
     ])
 
+def get_img_clip_features(images, clip_model, preprocess):
+    """Extract normalized image features using the CLIP model."""
+    image_features = clip_model.encode_image(preprocess(images))
+    return image_features / image_features.norm(dim=1, keepdim=True)
 
-def load_models(config, device):
-    config.z_shape = tuple(config.z_shape)
-    nnet = utils.get_nnet(**config.nnet)
-    nnet.load_state_dict(torch.load(config.nnet_path, map_location='cpu'))
-    nnet.to(device)
-    nnet.eval()
+def compute_clip_scores(adv_texts, tgt_texts, clip_models, device):
+    results = {}
+    for model_name, model in clip_models.items():
+        adv_features = get_texts_clip_features(adv_texts, model, device)
+        tgt_features = get_texts_clip_features(tgt_texts, model, device)
+        results[model_name] = torch.sum(adv_features * tgt_features, dim=1).squeeze().detach().cpu().numpy()
+    return results
 
-    caption_decoder = CaptionDecoder(device=device, **config.caption_decoder)
+def get_texts_clip_features(texts, clip_model, device):
+    with torch.no_grad():
+        text_token = clip.tokenize(texts, truncate=True).to(device)
+        text_features = clip_model.encode_text(text_token)
+        text_features = text_features / text_features.norm(dim=1, keepdim=True)
+        return text_features.detach()
 
-    autoencoder = libs.autoencoder.get_model(**config.autoencoder)
-    autoencoder.to(device)
-
-    clip_model, orig_preprocess = clip.load("ViT-B/32", device=device, jit=False)
-    clip_img_size = orig_preprocess.transforms[0].size
-    clip_model_img_preprocess = get_clip_model_img_preprocess(clip_img_size)
-
-    return nnet, caption_decoder, autoencoder, clip_model, clip_model_img_preprocess
+def prepare_texts(text_path, num_samples):
+    """Preprocess texts from file"""
+    with open(text_path, 'r') as f:
+        texts  = f.readlines()[:num_samples]
+        texts = [text.strip().strip(".") for text in texts]
+    return texts

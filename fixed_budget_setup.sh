@@ -8,13 +8,13 @@ source ~/.bashrc
 
 cd AttackVLM/
 tar -xvzf selected_imagenet_images.tar.gz -C .
-tar -xvzf ii_transfer_images.tar.gz -C .
+tar -xvzf img_text_transfer_images.tar.gz -C .
 
 git clone https://github.com/thu-ml/unidiffuser.git
 cp -r ./unidiff_tool/* ./unidiffuser
 cd unidiffuser
 
-conda create -n unidiffuser python=3.9
+conda create -n unidiffuser python=3.9 -y
 conda activate unidiffuser
 pip install torch torchvision --extra-index-url https://download.pytorch.org/whl/cu116  # install torch-1.13.1
 pip install accelerate==0.12.0 absl-py einops pandas omegaconf ftfy==6.1.1 transformers==4.23.1

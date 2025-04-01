@@ -1,8 +1,35 @@
 import torch
-import utils
-from dpm_solver_pp import NoiseScheduleVP, DPM_Solver
 import time
 from torchvision.transforms.functional import center_crop
+import clip
+
+# unififf imports
+import utils
+import libs.autoencoder
+import libs.clip
+from libs.caption_decoder import CaptionDecoder
+from dpm_solver_pp import NoiseScheduleVP, DPM_Solver
+
+from common.utils import get_clip_model_img_preprocess
+
+
+def load_models(config, device):
+    config.z_shape = tuple(config.z_shape)
+    nnet = utils.get_nnet(**config.nnet)
+    nnet.load_state_dict(torch.load(config.nnet_path, map_location='cpu'))
+    nnet.to(device)
+    nnet.eval()
+
+    caption_decoder = CaptionDecoder(device=device, **config.caption_decoder)
+
+    autoencoder = libs.autoencoder.get_model(**config.autoencoder)
+    autoencoder.to(device)
+
+    clip_model, orig_preprocess = clip.load("ViT-B/32", device=device, jit=False)
+    clip_img_size = orig_preprocess.transforms[0].size
+    clip_model_img_preprocess = get_clip_model_img_preprocess(clip_img_size)
+
+    return nnet, caption_decoder, autoencoder, clip_model, clip_model_img_preprocess
 
 def stable_diffusion_beta_schedule(linear_start=0.00085, linear_end=0.0120, n_timestep=1000):
     _betas = (
@@ -20,7 +47,7 @@ def prepare_contexts(config, images_batch, clip_img_model, clip_img_model_prepro
         images_batch = center_crop(images_batch, resolution)
         clip_img_feature = clip_img_model.encode_image(clip_img_model_preprocess(images_batch).to(device)).unsqueeze(1)   # [batch_size, 1, 512]
 
-        images_batch = (images_batch / 127.5 - 1.0)  # [0, 255] to [-1, 1]
+        images_batch = images_batch * 2 - 1.0  # [0, 1] to [-1, 1]
         moments = autoencoder.encode_moments(images_batch)  # [batch_size, 2*4, 64, 64]
 
         return clip_img_feature, moments

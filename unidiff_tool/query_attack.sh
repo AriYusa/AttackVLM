@@ -1,8 +1,9 @@
-python train_trans_and_query_fixed_budget.py \
+python query_attack.py \
     adv_data_path='../ii_transfer_images' \
-    clean_data_path='../selected_imagenet_images' \
     adv_text_path="../ii_transfer_images/captions.txt" \
+    clean_data_path='../selected_imagenet_images' \
     tgt_text_path='../coco_captions.txt' \
+    output_path='../query_images' \
     batch_size=2 \
     num_samples=100 \
     rgf_steps=4 \
