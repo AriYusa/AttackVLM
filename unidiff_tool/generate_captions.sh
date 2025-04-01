@@ -1,25 +1,25 @@
-python gen_and_save_captions.py \
+python generate_captions.py \
       seed=31 \
       images_path='../img_text_transfer_images' \
       output_path='../img_text_transfer_images' \
       batch_size=10 \
       num_samples=500
 
-python gen_and_save_captions.py \
+python generate_captions.py \
       seed=31 \
       images_path='../img_img_transfer_images' \
       output_path='../img_img_transfer_images' \
       batch_size=10 \
       num_samples=500
 
-python gen_and_save_captions.py \
+python generate_captions.py \
       seed=31 \
       images_path='../selected_imagenet_images' \
       output_path='../selected_imagenet_images' \
       batch_size=10 \
       num_samples=500
 
-python gen_and_save_captions.py \
+python generate_captions.py \
       seed=31 \
       images_path='../gen_images' \
       output_path='../gen_images2' \
